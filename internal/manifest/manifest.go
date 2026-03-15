@@ -141,3 +141,47 @@ func splitPath(path string) []string {
 	}
 	return parts
 }
+
+// Validate checks the manifest for common issues.
+func (m *Manifest) Validate() []string {
+	var issues []string
+
+	if len(m.Features) == 0 {
+		issues = append(issues, "manifest has no features defined")
+	}
+
+	for name, f := range m.Features {
+		issues = append(issues, validateFeature(name, f)...)
+	}
+
+	return issues
+}
+
+func validateFeature(name string, f Feature) []string {
+	var issues []string
+
+	// Check for invalid combinations
+	if f.IsLeaf() && len(f.Children) > 0 {
+		issues = append(issues, fmt.Sprintf("feature %s has both files and children", name))
+	}
+
+	// Warn about features with no interface and no children (orphaned intermediate)
+	if !f.IsLeaf() && f.Interface == "" && len(f.Children) == 0 {
+		issues = append(issues, fmt.Sprintf("feature %s has no interface and no children", name))
+	}
+
+	// Validate children recursively
+	for childName, child := range f.Children {
+		issues = append(issues, validateFeature(name+"/"+childName, child)...)
+	}
+
+	return issues
+}
+
+// Init creates a minimal manifest at the given path.
+func Init(path string) error {
+	m := &Manifest{
+		Features: make(map[string]Feature),
+	}
+	return m.Save(path)
+}

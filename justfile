@@ -16,6 +16,18 @@ run-parse: build
 parse FILE=".feat.yml": build
     ./feat parse -f {{FILE}}
 
+# Show feature tree
+list: build
+    ./feat list
+
+# Show current status
+status: build
+    ./feat status
+
+# Validate manifest
+validate: build
+    ./feat validate
+
 # Clean build artifacts
 clean:
     rm -f feat
@@ -44,3 +56,7 @@ deps:
 # Show module info
 info:
     go list -m all
+
+# Run all checks
+check: fmt vet test
+    @echo "All checks passed!"
