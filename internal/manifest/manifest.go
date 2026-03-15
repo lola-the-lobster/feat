@@ -101,18 +101,18 @@ func (m *Manifest) GetFeature(path string) (*Feature, []string, error) {
 			return nil, nil, fmt.Errorf("feature not found: %s", path)
 		}
 
-		// If this is an intermediate node with an interface, track it
-		if f.Interface != "" {
-			ancestors = append(ancestors, f.Interface)
-		}
-
 		// If this is the last part, we've found our feature
 		if i == len(parts)-1 {
 			feature = &f
 			break
 		}
 
-		// Otherwise, descend into children
+		// Otherwise, this is a parent node - if it has an interface, track it
+		if f.Interface != "" {
+			ancestors = append(ancestors, f.Interface)
+		}
+
+		// Descend into children
 		if f.Children == nil {
 			return nil, nil, fmt.Errorf("path continues but %s has no children", part)
 		}
