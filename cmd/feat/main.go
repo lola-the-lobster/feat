@@ -8,6 +8,7 @@ import (
 
 	"github.com/lola-the-lobster/feat/internal/loader"
 	"github.com/lola-the-lobster/feat/internal/manifest"
+	"github.com/lola-the-lobster/feat/internal/split"
 	"github.com/lola-the-lobster/feat/internal/tree"
 )
 
@@ -17,6 +18,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Commands:")
 		fmt.Fprintln(os.Stderr, "  list     Show feature tree")
 		fmt.Fprintln(os.Stderr, "  parse    Parse .feat.yml and dump structure")
+		fmt.Fprintln(os.Stderr, "  split    Create a new feature")
 		fmt.Fprintln(os.Stderr, "  work     Load a feature's context")
 		os.Exit(1)
 	}
@@ -31,6 +33,11 @@ func main() {
 		}
 	case "parse":
 		if err := runParse(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "split":
+		if err := runSplit(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -68,6 +75,57 @@ func runList() error {
 
 	printer := tree.NewPrinter()
 	fmt.Print(printer.Print(m))
+
+	return nil
+}
+
+func runSplit() error {
+	if len(os.Args) < 4 {
+		return fmt.Errorf("usage: feat split <parent-path> <new-name>")
+	}
+
+	parentPath := os.Args[2]
+	newName := os.Args[3]
+
+	var manifestPath string
+	var createFiles bool
+	flag.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	flag.BoolVar(&createFiles, "create-files", true, "Create empty files on disk")
+	flag.CommandLine.Parse(os.Args[4:])
+
+	// Resolve absolute path
+	absPath, err := filepath.Abs(manifestPath)
+	if err != nil {
+		return fmt.Errorf("resolving path: %w", err)
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		return fmt.Errorf("manifest not found: %s", absPath)
+	}
+
+	m, err := manifest.Load(absPath)
+	if err != nil {
+		return err
+	}
+
+	// Perform the split
+	result, err := split.Split(m, split.Options{
+		ParentPath:  parentPath,
+		NewName:     newName,
+		CreateFiles: createFiles,
+		ManifestDir: filepath.Dir(absPath),
+	})
+	if err != nil {
+		return err
+	}
+
+	// Save the manifest
+	if err := m.Save(absPath); err != nil {
+		return fmt.Errorf("saving manifest: %w", err)
+	}
+
+	fmt.Print(split.FormatResult(result))
 
 	return nil
 }
