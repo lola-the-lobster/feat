@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/lola-the-lobster/feat/internal/loader"
 	"github.com/lola-the-lobster/feat/internal/manifest"
 	"github.com/lola-the-lobster/feat/internal/tree"
 )
@@ -16,6 +17,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Commands:")
 		fmt.Fprintln(os.Stderr, "  list     Show feature tree")
 		fmt.Fprintln(os.Stderr, "  parse    Parse .feat.yml and dump structure")
+		fmt.Fprintln(os.Stderr, "  work     Load a feature's context")
 		os.Exit(1)
 	}
 
@@ -29,6 +31,11 @@ func main() {
 		}
 	case "parse":
 		if err := runParse(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "work":
+		if err := runWork(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -61,6 +68,44 @@ func runList() error {
 
 	printer := tree.NewPrinter()
 	fmt.Print(printer.Print(m))
+
+	return nil
+}
+
+func runWork() error {
+	if len(os.Args) < 3 {
+		return fmt.Errorf("usage: feat work <feature-path>")
+	}
+
+	featurePath := os.Args[2]
+
+	var manifestPath string
+	flag.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	flag.CommandLine.Parse(os.Args[3:])
+
+	// Resolve absolute path
+	absPath, err := filepath.Abs(manifestPath)
+	if err != nil {
+		return fmt.Errorf("resolving path: %w", err)
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		return fmt.Errorf("manifest not found: %s", absPath)
+	}
+
+	m, err := manifest.Load(absPath)
+	if err != nil {
+		return err
+	}
+
+	l := loader.New(m, absPath)
+	result, err := l.Load(featurePath)
+	if err != nil {
+		return err
+	}
+
+	fmt.Print(loader.FormatResult(result))
 
 	return nil
 }
