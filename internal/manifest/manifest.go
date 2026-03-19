@@ -1,4 +1,4 @@
-// Package manifest handles parsing and serialization of .feat.yml files.
+// Package manifest handles parsing and serialization of feat.yaml files.
 package manifest
 
 import (
@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Manifest represents the root .feat.yml file.
+// Manifest represents the root feat.yaml file.
 type Manifest struct {
 	// Features is a map of feature names to Feature nodes.
 	// The root level contains systems/subsystems (intermediate nodes)

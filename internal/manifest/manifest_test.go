@@ -9,7 +9,7 @@ import (
 func TestLoad(t *testing.T) {
 	// Create temp manifest
 	tmpDir := t.TempDir()
-	manifestPath := filepath.Join(tmpDir, ".feat.yml")
+	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 
 	content := `
 auth:
@@ -47,7 +47,7 @@ auth:
 }
 
 func TestLoadNotFound(t *testing.T) {
-	_, err := Load("/nonexistent/path/.feat.yml")
+	_, err := Load("/nonexistent/path/feat.yaml")
 	if err == nil {
 		t.Error("Expected error for non-existent file")
 	}
@@ -55,7 +55,7 @@ func TestLoadNotFound(t *testing.T) {
 
 func TestSave(t *testing.T) {
 	tmpDir := t.TempDir()
-	manifestPath := filepath.Join(tmpDir, ".feat.yml")
+	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 
 	m := &Manifest{
 		Features: map[string]Feature{

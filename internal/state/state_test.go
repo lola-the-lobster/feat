@@ -25,7 +25,7 @@ func TestSetAndGetCurrent(t *testing.T) {
 	mgr := NewManager(tmpDir)
 
 	// Set current
-	if err := mgr.SetCurrent("auth/login", "/project/.feat.yml"); err != nil {
+	if err := mgr.SetCurrent("auth/login", "/project/feat.yaml"); err != nil {
 		t.Fatalf("SetCurrent failed: %v", err)
 	}
 
@@ -43,8 +43,8 @@ func TestSetAndGetCurrent(t *testing.T) {
 		t.Errorf("FeaturePath = %q, want %q", state.FeaturePath, "auth/login")
 	}
 
-	if state.ManifestPath != "/project/.feat.yml" {
-		t.Errorf("ManifestPath = %q, want %q", state.ManifestPath, "/project/.feat.yml")
+	if state.ManifestPath != "/project/feat.yaml" {
+		t.Errorf("ManifestPath = %q, want %q", state.ManifestPath, "/project/feat.yaml")
 	}
 
 	if state.Timestamp.IsZero() {
@@ -71,7 +71,7 @@ func TestClear(t *testing.T) {
 	mgr := NewManager(tmpDir)
 
 	// Set then clear
-	if err := mgr.SetCurrent("auth/login", "/project/.feat.yml"); err != nil {
+	if err := mgr.SetCurrent("auth/login", "/project/feat.yaml"); err != nil {
 		t.Fatalf("SetCurrent failed: %v", err)
 	}
 
@@ -121,9 +121,9 @@ func TestFormatState(t *testing.T) {
 			name: "full state",
 			state: &State{
 				FeaturePath:  "auth/login",
-				ManifestPath: "/project/.feat.yml",
+				ManifestPath: "/project/feat.yaml",
 			},
-			contains: []string{"auth/login", "/project/.feat.yml"},
+			contains: []string{"auth/login", "/project/feat.yaml"},
 		},
 	}
 

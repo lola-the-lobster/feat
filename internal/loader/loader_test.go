@@ -25,7 +25,7 @@ func TestLoad(t *testing.T) {
 		},
 	}
 
-	manifestPath := filepath.Join(tmpDir, ".feat.yml")
+	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 	if err := m.Save(manifestPath); err != nil {
 		t.Fatalf("Failed to save manifest: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestLoadMissingFiles(t *testing.T) {
 		},
 	}
 
-	manifestPath := filepath.Join(tmpDir, ".feat.yml")
+	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 	if err := m.Save(manifestPath); err != nil {
 		t.Fatalf("Failed to save manifest: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestLoadNotLeaf(t *testing.T) {
 		},
 	}
 
-	manifestPath := filepath.Join(tmpDir, ".feat.yml")
+	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 	if err := m.Save(manifestPath); err != nil {
 		t.Fatalf("Failed to save manifest: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestLoadNotFound(t *testing.T) {
 		Features: map[string]manifest.Feature{},
 	}
 
-	manifestPath := filepath.Join(tmpDir, ".feat.yml")
+	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 	if err := m.Save(manifestPath); err != nil {
 		t.Fatalf("Failed to save manifest: %v", err)
 	}

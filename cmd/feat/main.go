@@ -88,9 +88,9 @@ func printUsage() {
 	fmt.Println("Usage: feat <command> [args]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  init              Create a new .feat.yml manifest")
+	fmt.Println("  init              Create a new feat.yaml manifest")
 	fmt.Println("  list              Show feature tree")
-	fmt.Println("  parse             Parse .feat.yml and dump structure")
+	fmt.Println("  parse             Parse feat.yaml and dump structure")
 	fmt.Println("  split <parent> <name>  Create a new feature")
 	fmt.Println("  status            Show current feature context")
 	fmt.Println("  validate          Check manifest for issues")
@@ -99,7 +99,7 @@ func printUsage() {
 	fmt.Println("  help              Show this help message")
 	fmt.Println()
 	fmt.Println("Global flags:")
-	fmt.Println("  -f <path>         Path to manifest file (default: .feat.yml)")
+	fmt.Println("  -f <path>         Path to manifest file (default: feat.yaml)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  feat init                    # Create new manifest")
@@ -113,7 +113,7 @@ func printUsage() {
 func runInit() error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	var manifestPath string
-	fs.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func runInit() error {
 func runList() error {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	var manifestPath string
-	fs.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func runSplit() error {
 	fs := flag.NewFlagSet("split", flag.ContinueOnError)
 	var manifestPath string
 	var createFiles bool
-	fs.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
 	fs.BoolVar(&createFiles, "create-files", true, "Create empty files on disk")
 	if err := fs.Parse(os.Args[4:]); err != nil {
 		return err
@@ -218,7 +218,7 @@ func runSplit() error {
 func runStatus() error {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	var manifestPath string
-	fs.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func runStatus() error {
 func runValidate() error {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	var manifestPath string
-	fs.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func runWork() error {
 
 	fs := flag.NewFlagSet("work", flag.ContinueOnError)
 	var manifestPath string
-	fs.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
 	if err := fs.Parse(os.Args[3:]); err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func runWork() error {
 func runParse() error {
 	fs := flag.NewFlagSet("parse", flag.ContinueOnError)
 	var manifestPath string
-	fs.StringVar(&manifestPath, "f", ".feat.yml", "Path to manifest file")
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
 	if err := fs.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -350,9 +350,9 @@ func resolveManifestPath(manifestPath string) (string, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Check if we're in the right directory
-			if _, err := os.Stat(".feat.yml"); err == nil && manifestPath == ".feat.yml" {
-				// They ran without -f but there's a .feat.yml here
-				abs, _ := filepath.Abs(".feat.yml")
+			if _, err := os.Stat("feat.yaml"); err == nil && manifestPath == "feat.yaml" {
+				// They ran without -f but there's a feat.yaml here
+				abs, _ := filepath.Abs("feat.yaml")
 				return abs, nil
 			}
 			return "", fmt.Errorf("manifest not found: %s\nRun 'feat init' to create one, or specify with -f", absPath)
