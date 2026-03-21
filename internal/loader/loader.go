@@ -20,8 +20,11 @@ type Result struct {
 	// Files are the absolute paths to the feature's implementation files.
 	Files []string
 
-	// AncestorInterfaces are the absolute paths to ancestor interface files.
-	AncestorInterfaces []string
+	// Tests are the absolute paths to the feature's test files.
+	Tests []string
+
+	// AncestorFiles are the absolute paths to ancestor implementation files.
+	AncestorFiles []string
 
 	// MissingFiles are files declared in the manifest but not found on disk.
 	MissingFiles []string
@@ -43,7 +46,7 @@ func New(m *manifest.Manifest, manifestPath string) *Loader {
 	}
 }
 
-// Load resolves a feature path and collects its files and ancestor interfaces.
+// Load resolves a feature path and collects its files and ancestor files.
 func (l *Loader) Load(featurePath string) (*Result, error) {
 	feature, ancestors, err := l.manifest.GetFeature(featurePath)
 	if err != nil {
@@ -59,14 +62,15 @@ func (l *Loader) Load(featurePath string) (*Result, error) {
 	}
 
 	result := &Result{
-		FeaturePath:        featurePath,
-		Feature:            feature,
-		Files:              make([]string, 0, len(feature.Files)),
-		AncestorInterfaces: make([]string, 0, len(ancestors)),
-		MissingFiles:       []string{},
+		FeaturePath:   featurePath,
+		Feature:       feature,
+		Files:         make([]string, 0, len(feature.Files)),
+		Tests:         make([]string, 0, len(feature.Tests)),
+		AncestorFiles: make([]string, 0, len(ancestors)),
+		MissingFiles:  []string{},
 	}
 
-	// Resolve file paths relative to manifest directory
+	// Resolve implementation file paths relative to manifest directory
 	for _, file := range feature.Files {
 		absPath := l.resolvePath(file)
 		result.Files = append(result.Files, absPath)
@@ -77,10 +81,21 @@ func (l *Loader) Load(featurePath string) (*Result, error) {
 		}
 	}
 
-	// Resolve ancestor interface paths
-	for _, iface := range ancestors {
-		absPath := l.resolvePath(iface)
-		result.AncestorInterfaces = append(result.AncestorInterfaces, absPath)
+	// Resolve test file paths
+	for _, file := range feature.Tests {
+		absPath := l.resolvePath(file)
+		result.Tests = append(result.Tests, absPath)
+
+		// Check if file exists
+		if _, err := os.Stat(absPath); os.IsNotExist(err) {
+			result.MissingFiles = append(result.MissingFiles, absPath)
+		}
+	}
+
+	// Resolve ancestor file paths (only implementation files, not tests)
+	for _, file := range ancestors {
+		absPath := l.resolvePath(file)
+		result.AncestorFiles = append(result.AncestorFiles, absPath)
 	}
 
 	return result, nil
@@ -113,10 +128,21 @@ func FormatResult(r *Result) string {
 		output += fmt.Sprintf("  - %s%s\n", f, exists)
 	}
 
-	if len(r.AncestorInterfaces) > 0 {
-		output += fmt.Sprintf("Interfaces: %d\n", len(r.AncestorInterfaces))
-		for _, iface := range r.AncestorInterfaces {
-			output += fmt.Sprintf("  - %s\n", iface)
+	if len(r.Tests) > 0 {
+		output += fmt.Sprintf("Tests: %d\n", len(r.Tests))
+		for _, f := range r.Tests {
+			exists := ""
+			if _, err := os.Stat(f); os.IsNotExist(err) {
+				exists = " (missing)"
+			}
+			output += fmt.Sprintf("  - %s%s\n", f, exists)
+		}
+	}
+
+	if len(r.AncestorFiles) > 0 {
+		output += fmt.Sprintf("Ancestor Files: %d\n", len(r.AncestorFiles))
+		for _, f := range r.AncestorFiles {
+			output += fmt.Sprintf("  - %s\n", f)
 		}
 	}
 

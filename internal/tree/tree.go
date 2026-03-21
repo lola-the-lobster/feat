@@ -93,8 +93,8 @@ func collectPaths(features map[string]manifest.Feature, prefix string, paths *[]
 		if feature.IsLeaf() {
 			*paths = append(*paths, path)
 		} else {
-			// Intermediate nodes can also be valid targets if they have an interface
-			if feature.Interface != "" {
+			// Intermediate nodes with files can be valid targets
+			if len(feature.Files) > 0 {
 				*paths = append(*paths, path+"/")
 			}
 			// Recurse into children

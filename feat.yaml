@@ -1,0 +1,35 @@
+tree:
+  name: feat
+  files:
+    - go.mod
+    - go.sum
+    - justfile
+  features:
+    cli:
+      files:
+        - cmd/feat/main.go
+    manifest:
+      files:
+        - internal/manifest/manifest.go
+      tests:
+        - internal/manifest/manifest_test.go
+    loader:
+      files:
+        - internal/loader/loader.go
+      tests:
+        - internal/loader/loader_test.go
+    split:
+      files:
+        - internal/split/split.go
+      tests:
+        - internal/split/split_test.go
+    tree:
+      files:
+        - internal/tree/tree.go
+      tests:
+        - internal/tree/tree_test.go
+    state:
+      files:
+        - internal/state/state.go
+      tests:
+        - internal/state/state_test.go

@@ -11,11 +11,11 @@ import (
 func TestSplit(t *testing.T) {
 	tmpDir := t.TempDir()
 
+	// Intermediate node: has children, no files
 	m := &manifest.Manifest{
 		Features: map[string]manifest.Feature{
 			"auth": {
-				Interface: "auth/interface.go",
-				Children:  map[string]manifest.Feature{},
+				Children: map[string]manifest.Feature{},
 			},
 		},
 	}
@@ -100,6 +100,7 @@ func TestSplitDuplicate(t *testing.T) {
 func TestSplitLeafParent(t *testing.T) {
 	tmpDir := t.TempDir()
 
+	// Leaf node: has files, no children
 	m := &manifest.Manifest{
 		Features: map[string]manifest.Feature{
 			"auth": {

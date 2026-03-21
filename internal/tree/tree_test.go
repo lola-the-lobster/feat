@@ -11,10 +11,12 @@ func TestPrint(t *testing.T) {
 	m := &manifest.Manifest{
 		Features: map[string]manifest.Feature{
 			"auth": {
-				Interface: "auth/interface.go",
+				Files: []string{"auth/interface.go"},
+				Tests: []string{"auth/interface_test.go"},
 				Children: map[string]manifest.Feature{
 					"login": {
 						Files: []string{"auth/login.go"},
+						Tests: []string{"auth/login_test.go"},
 					},
 					"logout": {
 						Files: []string{"auth/logout.go"},
@@ -23,6 +25,7 @@ func TestPrint(t *testing.T) {
 			},
 			"payments": {
 				Files: []string{"payments.go"},
+				Tests: []string{"payments_test.go"},
 			},
 		},
 	}
@@ -71,7 +74,7 @@ func TestListPaths(t *testing.T) {
 	m := &manifest.Manifest{
 		Features: map[string]manifest.Feature{
 			"auth": {
-				Interface: "auth/interface.go",
+				Files: []string{"auth/interface.go"},
 				Children: map[string]manifest.Feature{
 					"login": {Files: []string{"auth/login.go"}},
 				},
@@ -84,7 +87,7 @@ func TestListPaths(t *testing.T) {
 
 	paths := ListPaths(m)
 
-	// Should include: auth/ (intermediate with interface), auth/login (leaf), payments (leaf)
+	// Should include: auth/ (intermediate with files), auth/login (leaf), payments (leaf)
 	if len(paths) != 3 {
 		t.Errorf("Expected 3 paths, got %d: %v", len(paths), paths)
 	}

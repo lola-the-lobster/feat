@@ -11,14 +11,16 @@ import (
 func TestLoad(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest
+	// Create manifest with multiple ancestor files
 	m := &manifest.Manifest{
 		Features: map[string]manifest.Feature{
 			"auth": {
-				Interface: "auth/interface.go",
+				Files: []string{"auth/interface.go", "auth/types.go"},
+				Tests: []string{"auth/interface_test.go"},
 				Children: map[string]manifest.Feature{
 					"login": {
 						Files: []string{"auth/login/handler.go", "auth/login/types.go"},
+						Tests: []string{"auth/login/handler_test.go"},
 					},
 				},
 			},
@@ -35,14 +37,20 @@ func TestLoad(t *testing.T) {
 	if err := os.MkdirAll(authDir, 0755); err != nil {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(authDir, "handler.go"), []byte("package login"), 0644); err != nil {
-		t.Fatalf("Failed to create file: %v", err)
+	
+	// Create implementation files
+	files := []string{
+		filepath.Join(authDir, "handler.go"),
+		filepath.Join(authDir, "types.go"),
+		filepath.Join(authDir, "handler_test.go"),
+		filepath.Join(tmpDir, "auth", "interface.go"),
+		filepath.Join(tmpDir, "auth", "types.go"),
+		filepath.Join(tmpDir, "auth", "interface_test.go"),
 	}
-	if err := os.WriteFile(filepath.Join(authDir, "types.go"), []byte("package login"), 0644); err != nil {
-		t.Fatalf("Failed to create file: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "auth", "interface.go"), []byte("package auth"), 0644); err != nil {
-		t.Fatalf("Failed to create interface file: %v", err)
+	for _, f := range files {
+		if err := os.WriteFile(f, []byte("package"), 0644); err != nil {
+			t.Fatalf("Failed to create file %s: %v", f, err)
+		}
 	}
 
 	// Load the feature
@@ -60,8 +68,13 @@ func TestLoad(t *testing.T) {
 		t.Errorf("Expected 2 files, got %d", len(result.Files))
 	}
 
-	if len(result.AncestorInterfaces) != 1 {
-		t.Errorf("Expected 1 ancestor interface, got %d", len(result.AncestorInterfaces))
+	if len(result.Tests) != 1 {
+		t.Errorf("Expected 1 test file, got %d", len(result.Tests))
+	}
+
+	// AncestorFiles should contain 2 implementation files (not tests)
+	if len(result.AncestorFiles) != 2 {
+		t.Errorf("Expected 2 ancestor files, got %d", len(result.AncestorFiles))
 	}
 
 	if len(result.MissingFiles) != 0 {
@@ -76,6 +89,7 @@ func TestLoadMissingFiles(t *testing.T) {
 		Features: map[string]manifest.Feature{
 			"auth": {
 				Files: []string{"auth/missing.go"},
+				Tests: []string{"auth/missing_test.go"},
 			},
 		},
 	}
@@ -91,8 +105,8 @@ func TestLoadMissingFiles(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	if len(result.MissingFiles) != 1 {
-		t.Errorf("Expected 1 missing file, got %d", len(result.MissingFiles))
+	if len(result.MissingFiles) != 2 {
+		t.Errorf("Expected 2 missing files, got %d", len(result.MissingFiles))
 	}
 }
 
@@ -102,7 +116,7 @@ func TestLoadNotLeaf(t *testing.T) {
 	m := &manifest.Manifest{
 		Features: map[string]manifest.Feature{
 			"auth": {
-				Interface: "auth/interface.go",
+				Files: []string{"auth/interface.go"},
 				Children: map[string]manifest.Feature{
 					"login": {Files: []string{"auth/login.go"}},
 				},

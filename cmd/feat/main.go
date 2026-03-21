@@ -383,11 +383,8 @@ func printFeature(name string, f manifest.Feature, indent int) {
 		}
 	} else {
 		fmt.Printf("%s%s/\n", prefix, name)
-		if f.Interface != "" {
-			fmt.Printf("%s  [interface: %s]\n", prefix, f.Interface)
-		}
-		if len(f.Deps) > 0 {
-			fmt.Printf("%s  [deps: %v]\n", prefix, f.Deps)
+		if len(f.Files) > 0 {
+			fmt.Printf("%s  [files: %v]\n", prefix, f.Files)
 		}
 	}
 

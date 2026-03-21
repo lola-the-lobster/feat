@@ -18,27 +18,53 @@ type Manifest struct {
 
 // Feature represents either an intermediate node (subsystem) or a leaf (actual feature).
 type Feature struct {
-	// Interface is the path to the interface file (for intermediate nodes).
-	Interface string `yaml:"interface,omitempty"`
-
-	// Deps are external dependencies (optional, at any level).
-	Deps []string `yaml:"deps,omitempty"`
-
-	// Files are the implementation files (for leaf features only).
+	// Files are the implementation files for this feature.
+	// Both intermediate nodes and leaves can have files.
 	Files []string `yaml:"files,omitempty"`
 
-	// Children are nested features.
+	// Tests are the test files for this feature.
+	// Kept separate from Files to distinguish implementation from tests.
+	Tests []string `yaml:"tests,omitempty"`
+
+	// Children are nested features (subsystems).
+	// If Children is non-nil, this is an intermediate node.
+	// If Children is nil, this is a leaf (if it has content) or placeholder (if empty).
 	Children map[string]Feature `yaml:",inline"`
 }
 
-// IsLeaf returns true if this feature has files (it's a leaf node).
+// IsLeaf returns true if this feature is a leaf node.
+// A leaf has content (files/tests) and no children.
+// Note: An empty feature (no files, no tests, no children) is a placeholder, not a leaf.
 func (f Feature) IsLeaf() bool {
-	return len(f.Files) > 0
+	if f.Children != nil {
+		return false // Has children → intermediate
+	}
+	// No children - check if it has content
+	hasContent := len(f.Files) > 0 || len(f.Tests) > 0
+	return hasContent
 }
 
-// IsIntermediate returns true if this feature has an interface or children.
+// IsIntermediate returns true if this feature is an intermediate node.
+// Intermediate nodes either:
+//   - Have explicit children (non-nil Children map)
+//   - Are empty placeholders (no files, no tests, no children defined yet)
 func (f Feature) IsIntermediate() bool {
-	return f.Interface != "" || len(f.Children) > 0
+	if f.Children != nil {
+		return true // Has explicit children
+	}
+	// No children - check if it's an empty placeholder
+	hasContent := len(f.Files) > 0 || len(f.Tests) > 0
+	return !hasContent // Empty = placeholder = intermediate
+}
+
+// HasContent returns true if this feature has any files or tests.
+func (f Feature) HasContent() bool {
+	return len(f.Files) > 0 || len(f.Tests) > 0
+}
+
+// AllFiles returns both implementation and test files.
+func (f Feature) AllFiles() []string {
+	return append(f.Files, f.Tests...)
 }
 
 // Load reads a manifest from the given path.
@@ -89,7 +115,8 @@ func (m *Manifest) GetFeature(path string) (*Feature, []string, error) {
 		return nil, nil, fmt.Errorf("invalid feature path: %s", path)
 	}
 
-	// Collect ancestor interfaces as we traverse
+	// Collect ancestor implementation files as we traverse
+	// Note: ancestor test files are NOT included (tests are feature-specific)
 	var ancestors []string
 
 	current := m.Features
@@ -107,10 +134,8 @@ func (m *Manifest) GetFeature(path string) (*Feature, []string, error) {
 			break
 		}
 
-		// Otherwise, this is a parent node - if it has an interface, track it
-		if f.Interface != "" {
-			ancestors = append(ancestors, f.Interface)
-		}
+		// Otherwise, this is a parent node - collect its implementation files (not tests)
+		ancestors = append(ancestors, f.Files...)
 
 		// Descend into children
 		if f.Children == nil {
@@ -160,19 +185,14 @@ func (m *Manifest) Validate() []string {
 func validateFeature(name string, f Feature) []string {
 	var issues []string
 
-	// Check for invalid combinations
-	if f.IsLeaf() && len(f.Children) > 0 {
-		issues = append(issues, fmt.Sprintf("feature %s has both files and children", name))
-	}
-
-	// Warn about features with no interface and no children (orphaned intermediate)
-	if !f.IsLeaf() && f.Interface == "" && len(f.Children) == 0 {
-		issues = append(issues, fmt.Sprintf("feature %s has no interface and no children", name))
-	}
+	// Note: Intermediate nodes CAN have files/tests. They're not just boundaries.
+	// An auth subsystem might have auth/interface.go AND auth/login/ children.
 
 	// Validate children recursively
-	for childName, child := range f.Children {
-		issues = append(issues, validateFeature(name+"/"+childName, child)...)
+	if f.Children != nil {
+		for childName, child := range f.Children {
+			issues = append(issues, validateFeature(name+"/"+childName, child)...)
+		}
 	}
 
 	return issues

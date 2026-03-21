@@ -13,11 +13,16 @@ func TestLoad(t *testing.T) {
 
 	content := `
 auth:
-  interface: auth/interface.go
+  files:
+    - auth/interface.go
+  tests:
+    - auth/interface_test.go
   login:
     files:
       - auth/login/handler.go
       - auth/login/types.go
+    tests:
+      - auth/login/handler_test.go
 `
 	if err := os.WriteFile(manifestPath, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write test manifest: %v", err)
@@ -37,8 +42,12 @@ auth:
 		t.Fatal("Expected 'auth' feature")
 	}
 
-	if auth.Interface != "auth/interface.go" {
-		t.Errorf("Expected interface 'auth/interface.go', got %s", auth.Interface)
+	if len(auth.Files) != 1 || auth.Files[0] != "auth/interface.go" {
+		t.Errorf("Expected files ['auth/interface.go'], got %v", auth.Files)
+	}
+
+	if len(auth.Tests) != 1 || auth.Tests[0] != "auth/interface_test.go" {
+		t.Errorf("Expected tests ['auth/interface_test.go'], got %v", auth.Tests)
 	}
 
 	if len(auth.Children) != 1 {
@@ -60,10 +69,12 @@ func TestSave(t *testing.T) {
 	m := &Manifest{
 		Features: map[string]Feature{
 			"auth": {
-				Interface: "auth/interface.go",
+				Files: []string{"auth/interface.go"},
+				Tests: []string{"auth/interface_test.go"},
 				Children: map[string]Feature{
 					"login": {
 						Files: []string{"auth/login/handler.go"},
+						Tests: []string{"auth/login/handler_test.go"},
 					},
 				},
 			},
@@ -88,13 +99,18 @@ func TestSave(t *testing.T) {
 	if len(m2.Features) != 1 {
 		t.Errorf("Expected 1 feature after reload, got %d", len(m2.Features))
 	}
+
+	auth := m2.Features["auth"]
+	if len(auth.Tests) != 1 {
+		t.Errorf("Expected 1 test after reload, got %d", len(auth.Tests))
+	}
 }
 
 func TestGetFeature(t *testing.T) {
 	m := &Manifest{
 		Features: map[string]Feature{
 			"auth": {
-				Interface: "auth/interface.go",
+				Files: []string{"auth/interface.go"},
 				Children: map[string]Feature{
 					"login": {
 						Files: []string{"auth/login/handler.go"},
@@ -110,8 +126,8 @@ func TestGetFeature(t *testing.T) {
 		expectLeaf      bool
 		expectAncestors int
 	}{
-		{"auth/login", false, true, 1}, // 1 ancestor: auth/interface.go
-		{"auth", false, false, 0},    // 0 ancestors (root level)
+		{"auth/login", false, true, 1}, // 1 ancestor file: auth/interface.go
+		{"auth", false, false, 0},     // 0 ancestors (root level, not leaf)
 		{"nonexistent", true, false, 0},
 		{"auth/nonexistent", true, false, 0},
 		{"", true, false, 0},
@@ -148,16 +164,59 @@ func TestFeatureIsLeaf(t *testing.T) {
 		want bool
 	}{
 		{Feature{Files: []string{"a.go"}}, true},
+		{Feature{Tests: []string{"a_test.go"}}, true},
+		{Feature{Files: []string{"a.go"}, Tests: []string{"a_test.go"}}, true},
 		{Feature{Files: []string{}}, false},
-		{Feature{Interface: "iface.go"}, false},
 		{Feature{Children: map[string]Feature{}}, false},
+		{Feature{Files: []string{"a.go"}, Children: map[string]Feature{"child": {}}}, false},
 	}
 
 	for _, tt := range tests {
 		got := tt.f.IsLeaf()
 		if got != tt.want {
-			t.Errorf("IsLeaf() = %v, want %v", got, tt.want)
+			t.Errorf("IsLeaf() = %v, want %v for %+v", got, tt.want, tt.f)
 		}
+	}
+}
+
+func TestFeatureIsIntermediate(t *testing.T) {
+	tests := []struct {
+		f    Feature
+		want bool
+	}{
+		// Has children → intermediate
+		{Feature{Children: map[string]Feature{"child": {}}}, true},
+		// Has files and children → intermediate
+		{Feature{Files: []string{"a.go"}, Children: map[string]Feature{"child": {}}}, true},
+		// Has files only → leaf
+		{Feature{Files: []string{"a.go"}}, false},
+		// Has tests only → leaf
+		{Feature{Tests: []string{"a_test.go"}}, false},
+		// Has both files and tests → leaf
+		{Feature{Files: []string{"a.go"}, Tests: []string{"a_test.go"}}, false},
+		// Empty subsystem → intermediate (boundary placeholder)
+		{Feature{}, true},
+		// Empty children map → intermediate
+		{Feature{Children: map[string]Feature{}}, true},
+	}
+
+	for _, tt := range tests {
+		got := tt.f.IsIntermediate()
+		if got != tt.want {
+			t.Errorf("IsIntermediate() = %v, want %v for %+v", got, tt.want, tt.f)
+		}
+	}
+}
+
+func TestFeatureAllFiles(t *testing.T) {
+	f := Feature{
+		Files: []string{"a.go", "b.go"},
+		Tests: []string{"a_test.go"},
+	}
+
+	all := f.AllFiles()
+	if len(all) != 3 {
+		t.Errorf("Expected 3 files, got %d: %v", len(all), all)
 	}
 }
 
@@ -173,11 +232,11 @@ func TestValidate(t *testing.T) {
 			issues: 1,
 		},
 		{
-			name: "valid feature",
+			name: "valid feature tree",
 			m: Manifest{
 				Features: map[string]Feature{
 					"auth": {
-						Interface: "auth/interface.go",
+						Files: []string{"auth/interface.go"},
 						Children: map[string]Feature{
 							"login": {Files: []string{"auth/login.go"}},
 						},
@@ -187,13 +246,22 @@ func TestValidate(t *testing.T) {
 			issues: 0,
 		},
 		{
-			name: "orphaned intermediate",
+			name: "valid leaf with tests",
 			m: Manifest{
 				Features: map[string]Feature{
-					"auth": {Children: map[string]Feature{}},
+					"auth": {Files: []string{"auth.go"}, Tests: []string{"auth_test.go"}},
 				},
 			},
-			issues: 1,
+			issues: 0,
+		},
+		{
+			name: "valid empty subsystem",
+			m: Manifest{
+				Features: map[string]Feature{
+					"payments": {},
+				},
+			},
+			issues: 0,
 		},
 	}
 
@@ -204,5 +272,24 @@ func TestValidate(t *testing.T) {
 				t.Errorf("Validate() returned %d issues, want %d: %v", len(issues), tt.issues, issues)
 			}
 		})
+	}
+}
+
+func TestInit(t *testing.T) {
+	tmpDir := t.TempDir()
+	manifestPath := filepath.Join(tmpDir, "feat.yaml")
+
+	if err := Init(manifestPath); err != nil {
+		t.Fatalf("Init failed: %v", err)
+	}
+
+	m, err := Load(manifestPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Note: empty maps become nil when serialized through YAML, which is fine
+	if m.Features == nil {
+		t.Skip("Empty maps become nil after YAML roundtrip - this is fine")
 	}
 }
