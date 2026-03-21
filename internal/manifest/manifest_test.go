@@ -12,17 +12,23 @@ func TestLoad(t *testing.T) {
 	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 
 	content := `
-auth:
+tree:
+  name: my-project
   files:
-    - auth/interface.go
-  tests:
-    - auth/interface_test.go
-  login:
-    files:
-      - auth/login/handler.go
-      - auth/login/types.go
-    tests:
-      - auth/login/handler_test.go
+    - root.go
+  features:
+    auth:
+      files:
+        - auth/interface.go
+      tests:
+        - auth/interface_test.go
+      children:
+        login:
+          files:
+            - auth/login/handler.go
+            - auth/login/types.go
+          tests:
+            - auth/login/handler_test.go
 `
 	if err := os.WriteFile(manifestPath, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write test manifest: %v", err)
@@ -33,21 +39,29 @@ auth:
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	if len(m.Features) != 1 {
-		t.Errorf("Expected 1 root feature, got %d", len(m.Features))
+	if m.Tree.Name != "my-project" {
+		t.Errorf("Expected name 'my-project', got %q", m.Tree.Name)
 	}
 
-	auth, ok := m.Features["auth"]
+	if len(m.Tree.Files) != 1 || m.Tree.Files[0] != "root.go" {
+		t.Errorf("Expected root files ['root.go'], got %v", m.Tree.Files)
+	}
+
+	if len(m.Tree.Features) != 1 {
+		t.Errorf("Expected 1 root feature, got %d", len(m.Tree.Features))
+	}
+
+	auth, ok := m.Tree.Features["auth"]
 	if !ok {
 		t.Fatal("Expected 'auth' feature")
 	}
 
 	if len(auth.Files) != 1 || auth.Files[0] != "auth/interface.go" {
-		t.Errorf("Expected files ['auth/interface.go'], got %v", auth.Files)
+		t.Errorf("Expected auth files ['auth/interface.go'], got %v", auth.Files)
 	}
 
 	if len(auth.Tests) != 1 || auth.Tests[0] != "auth/interface_test.go" {
-		t.Errorf("Expected tests ['auth/interface_test.go'], got %v", auth.Tests)
+		t.Errorf("Expected auth tests ['auth/interface_test.go'], got %v", auth.Tests)
 	}
 
 	if len(auth.Children) != 1 {
@@ -67,14 +81,17 @@ func TestSave(t *testing.T) {
 	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 
 	m := &Manifest{
-		Features: map[string]Feature{
-			"auth": {
-				Files: []string{"auth/interface.go"},
-				Tests: []string{"auth/interface_test.go"},
-				Children: map[string]Feature{
-					"login": {
-						Files: []string{"auth/login/handler.go"},
-						Tests: []string{"auth/login/handler_test.go"},
+		Tree: Tree{
+			Name: "test-project",
+			Features: map[string]Feature{
+				"auth": {
+					Files: []string{"auth/interface.go"},
+					Tests: []string{"auth/interface_test.go"},
+					Children: map[string]Feature{
+						"login": {
+							Files: []string{"auth/login/handler.go"},
+							Tests: []string{"auth/login/handler_test.go"},
+						},
 					},
 				},
 			},
@@ -96,11 +113,15 @@ func TestSave(t *testing.T) {
 		t.Fatalf("Reload failed: %v", err)
 	}
 
-	if len(m2.Features) != 1 {
-		t.Errorf("Expected 1 feature after reload, got %d", len(m2.Features))
+	if m2.Tree.Name != "test-project" {
+		t.Errorf("Expected name 'test-project', got %q", m2.Tree.Name)
 	}
 
-	auth := m2.Features["auth"]
+	if len(m2.Tree.Features) != 1 {
+		t.Errorf("Expected 1 feature after reload, got %d", len(m2.Tree.Features))
+	}
+
+	auth := m2.Tree.Features["auth"]
 	if len(auth.Tests) != 1 {
 		t.Errorf("Expected 1 test after reload, got %d", len(auth.Tests))
 	}
@@ -108,12 +129,15 @@ func TestSave(t *testing.T) {
 
 func TestGetFeature(t *testing.T) {
 	m := &Manifest{
-		Features: map[string]Feature{
-			"auth": {
-				Files: []string{"auth/interface.go"},
-				Children: map[string]Feature{
-					"login": {
-						Files: []string{"auth/login/handler.go"},
+		Tree: Tree{
+			Name: "test",
+			Features: map[string]Feature{
+				"auth": {
+					Files: []string{"auth/interface.go"},
+					Children: map[string]Feature{
+						"login": {
+							Files: []string{"auth/login/handler.go"},
+						},
 					},
 				},
 			},
@@ -127,7 +151,7 @@ func TestGetFeature(t *testing.T) {
 		expectAncestors int
 	}{
 		{"auth/login", false, true, 1}, // 1 ancestor file: auth/interface.go
-		{"auth", false, false, 0},     // 0 ancestors (root level, not leaf)
+		{"auth", false, false, 0},      // 0 ancestors (root level, not leaf)
 		{"nonexistent", true, false, 0},
 		{"auth/nonexistent", true, false, 0},
 		{"", true, false, 0},
@@ -228,17 +252,29 @@ func TestValidate(t *testing.T) {
 	}{
 		{
 			name:   "empty manifest",
-			m:      Manifest{Features: map[string]Feature{}},
+			m:      Manifest{Tree: Tree{Name: "", Features: map[string]Feature{}}},
+			issues: 2, // no name, no features
+		},
+		{
+			name: "missing name",
+			m: Manifest{
+				Tree: Tree{
+					Name:     "",
+					Features: map[string]Feature{"auth": {Files: []string{"auth.go"}}},
+				},
+			},
 			issues: 1,
 		},
 		{
 			name: "valid feature tree",
 			m: Manifest{
-				Features: map[string]Feature{
-					"auth": {
-						Files: []string{"auth/interface.go"},
-						Children: map[string]Feature{
-							"login": {Files: []string{"auth/login.go"}},
+				Tree: Tree{
+					Name: "my-project",
+					Features: map[string]Feature{
+						"auth": {
+							Files: []string{"auth/interface.go"},
+							Children: map[string]Feature{
+								"login": {Files: []string{"auth/login.go"}}},
 						},
 					},
 				},
@@ -248,8 +284,9 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid leaf with tests",
 			m: Manifest{
-				Features: map[string]Feature{
-					"auth": {Files: []string{"auth.go"}, Tests: []string{"auth_test.go"}},
+				Tree: Tree{
+					Name:     "my-project",
+					Features: map[string]Feature{"auth": {Files: []string{"auth.go"}, Tests: []string{"auth_test.go"}}},
 				},
 			},
 			issues: 0,
@@ -257,8 +294,9 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid empty subsystem",
 			m: Manifest{
-				Features: map[string]Feature{
-					"payments": {},
+				Tree: Tree{
+					Name:     "my-project",
+					Features: map[string]Feature{"payments": {}},
 				},
 			},
 			issues: 0,
@@ -279,7 +317,7 @@ func TestInit(t *testing.T) {
 	tmpDir := t.TempDir()
 	manifestPath := filepath.Join(tmpDir, "feat.yaml")
 
-	if err := Init(manifestPath); err != nil {
+	if err := Init(manifestPath, "my-project"); err != nil {
 		t.Fatalf("Init failed: %v", err)
 	}
 
@@ -288,8 +326,9 @@ func TestInit(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	// Note: empty maps become nil when serialized through YAML, which is fine
-	if m.Features == nil {
-		t.Skip("Empty maps become nil after YAML roundtrip - this is fine")
+	if m.Tree.Name != "my-project" {
+		t.Errorf("Expected name 'my-project', got %q", m.Tree.Name)
 	}
+
+	// Note: empty maps become nil when serialized through YAML, which is fine
 }

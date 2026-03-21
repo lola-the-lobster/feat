@@ -30,7 +30,7 @@ func NewPrinter() *Printer {
 //     email-verification
 func (p *Printer) Print(m *manifest.Manifest) string {
 	var b strings.Builder
-	p.printFeatures(m.Features, 0, &b)
+	p.printFeatures(m.Tree.Features, 0, &b)
 	return b.String()
 }
 
@@ -66,10 +66,10 @@ func (p *Printer) printFeature(name string, f manifest.Feature, indent string, d
 	}
 }
 
-// ListFormat returns a simple list of all feature paths (for machine-readable output).
+// ListPaths returns a simple list of all feature paths (for machine-readable output).
 func ListPaths(m *manifest.Manifest) []string {
 	var paths []string
-	collectPaths(m.Features, "", &paths)
+	collectPaths(m.Tree.Features, "", &paths)
 	return paths
 }
 

@@ -57,10 +57,10 @@ func Split(m *manifest.Manifest, opts Options) (*Result, error) {
 
 	if opts.ParentPath == "" {
 		// Root-level feature
-		if m.Features == nil {
-			m.Features = make(map[string]manifest.Feature)
+		if m.Tree.Features == nil {
+			m.Tree.Features = make(map[string]manifest.Feature)
 		}
-		parentMap = m.Features
+		parentMap = m.Tree.Features
 		newFeaturePath = opts.NewName
 	} else {
 		// Nested feature
@@ -109,11 +109,11 @@ func Split(m *manifest.Manifest, opts Options) (*Result, error) {
 // navigateToParent navigates to the parent feature's Children map.
 // Creates intermediate nodes if they don't exist.
 func navigateToParent(m *manifest.Manifest, parts []string) (map[string]manifest.Feature, error) {
-	if m.Features == nil {
-		m.Features = make(map[string]manifest.Feature)
+	if m.Tree.Features == nil {
+		m.Tree.Features = make(map[string]manifest.Feature)
 	}
 
-	current := m.Features
+	current := m.Tree.Features
 
 	for i, part := range parts {
 		f, exists := current[part]

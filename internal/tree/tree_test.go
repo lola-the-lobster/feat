@@ -9,23 +9,26 @@ import (
 
 func TestPrint(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{
-			"auth": {
-				Files: []string{"auth/interface.go"},
-				Tests: []string{"auth/interface_test.go"},
-				Children: map[string]manifest.Feature{
-					"login": {
-						Files: []string{"auth/login.go"},
-						Tests: []string{"auth/login_test.go"},
-					},
-					"logout": {
-						Files: []string{"auth/logout.go"},
+		Tree: manifest.Tree{
+			Name: "my-project",
+			Features: map[string]manifest.Feature{
+				"auth": {
+					Files: []string{"auth/interface.go"},
+					Tests: []string{"auth/interface_test.go"},
+					Children: map[string]manifest.Feature{
+						"login": {
+							Files: []string{"auth/login.go"},
+							Tests: []string{"auth/login_test.go"},
+						},
+						"logout": {
+							Files: []string{"auth/logout.go"},
+						},
 					},
 				},
-			},
-			"payments": {
-				Files: []string{"payments.go"},
-				Tests: []string{"payments_test.go"},
+				"payments": {
+					Files: []string{"payments.go"},
+					Tests: []string{"payments_test.go"},
+				},
 			},
 		},
 	}
@@ -59,7 +62,10 @@ func TestPrint(t *testing.T) {
 
 func TestPrintEmpty(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{},
+		Tree: manifest.Tree{
+			Name:     "my-project",
+			Features: map[string]manifest.Feature{},
+		},
 	}
 
 	printer := NewPrinter()
@@ -72,15 +78,18 @@ func TestPrintEmpty(t *testing.T) {
 
 func TestListPaths(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{
-			"auth": {
-				Files: []string{"auth/interface.go"},
-				Children: map[string]manifest.Feature{
-					"login": {Files: []string{"auth/login.go"}},
+		Tree: manifest.Tree{
+			Name: "my-project",
+			Features: map[string]manifest.Feature{
+				"auth": {
+					Files: []string{"auth/interface.go"},
+					Children: map[string]manifest.Feature{
+						"login": {Files: []string{"auth/login.go"}},
+					},
 				},
-			},
-			"payments": {
-				Files: []string{"payments.go"},
+				"payments": {
+					Files: []string{"payments.go"},
+				},
 			},
 		},
 	}
@@ -127,7 +136,10 @@ func TestListPaths(t *testing.T) {
 
 func TestListPathsEmpty(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{},
+		Tree: manifest.Tree{
+			Name:     "my-project",
+			Features: map[string]manifest.Feature{},
+		},
 	}
 
 	paths := ListPaths(m)

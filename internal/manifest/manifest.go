@@ -10,10 +10,20 @@ import (
 
 // Manifest represents the root feat.yaml file.
 type Manifest struct {
-	// Features is a map of feature names to Feature nodes.
-	// The root level contains systems/subsystems (intermediate nodes)
-	// and leaves are actual features.
-	Features map[string]Feature `yaml:",inline"`
+	// Tree is the root of the feature hierarchy.
+	Tree Tree `yaml:"tree"`
+}
+
+// Tree represents the root node of the feature hierarchy.
+type Tree struct {
+	// Name is the project name.
+	Name string `yaml:"name"`
+
+	// Files are files at the root level (e.g., go.mod, README.md).
+	Files []string `yaml:"files,omitempty"`
+
+	// Features are the top-level features.
+	Features map[string]Feature `yaml:"features,omitempty"`
 }
 
 // Feature represents either an intermediate node (subsystem) or a leaf (actual feature).
@@ -119,7 +129,7 @@ func (m *Manifest) GetFeature(path string) (*Feature, []string, error) {
 	// Note: ancestor test files are NOT included (tests are feature-specific)
 	var ancestors []string
 
-	current := m.Features
+	current := m.Tree.Features
 	var feature *Feature
 
 	for i, part := range parts {
@@ -171,11 +181,15 @@ func splitPath(path string) []string {
 func (m *Manifest) Validate() []string {
 	var issues []string
 
-	if len(m.Features) == 0 {
+	if m.Tree.Name == "" {
+		issues = append(issues, "manifest tree has no name")
+	}
+
+	if len(m.Tree.Features) == 0 {
 		issues = append(issues, "manifest has no features defined")
 	}
 
-	for name, f := range m.Features {
+	for name, f := range m.Tree.Features {
 		issues = append(issues, validateFeature(name, f)...)
 	}
 
@@ -199,9 +213,12 @@ func validateFeature(name string, f Feature) []string {
 }
 
 // Init creates a minimal manifest at the given path.
-func Init(path string) error {
+func Init(path string, projectName string) error {
 	m := &Manifest{
-		Features: make(map[string]Feature),
+		Tree: Tree{
+			Name:     projectName,
+			Features: make(map[string]Feature),
+		},
 	}
 	return m.Save(path)
 }

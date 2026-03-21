@@ -11,16 +11,19 @@ import (
 func TestLoad(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create manifest with multiple ancestor files
+	// Create manifest with Tree structure
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{
-			"auth": {
-				Files: []string{"auth/interface.go", "auth/types.go"},
-				Tests: []string{"auth/interface_test.go"},
-				Children: map[string]manifest.Feature{
-					"login": {
-						Files: []string{"auth/login/handler.go", "auth/login/types.go"},
-						Tests: []string{"auth/login/handler_test.go"},
+		Tree: manifest.Tree{
+			Name: "test-project",
+			Features: map[string]manifest.Feature{
+				"auth": {
+					Files: []string{"auth/interface.go", "auth/types.go"},
+					Tests: []string{"auth/interface_test.go"},
+					Children: map[string]manifest.Feature{
+						"login": {
+							Files: []string{"auth/login/handler.go", "auth/login/types.go"},
+							Tests: []string{"auth/login/handler_test.go"},
+						},
 					},
 				},
 			},
@@ -37,7 +40,7 @@ func TestLoad(t *testing.T) {
 	if err := os.MkdirAll(authDir, 0755); err != nil {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
-	
+
 	// Create implementation files
 	files := []string{
 		filepath.Join(authDir, "handler.go"),
@@ -86,10 +89,13 @@ func TestLoadMissingFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{
-			"auth": {
-				Files: []string{"auth/missing.go"},
-				Tests: []string{"auth/missing_test.go"},
+		Tree: manifest.Tree{
+			Name: "test",
+			Features: map[string]manifest.Feature{
+				"auth": {
+					Files: []string{"auth/missing.go"},
+					Tests: []string{"auth/missing_test.go"},
+				},
 			},
 		},
 	}
@@ -114,11 +120,14 @@ func TestLoadNotLeaf(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{
-			"auth": {
-				Files: []string{"auth/interface.go"},
-				Children: map[string]manifest.Feature{
-					"login": {Files: []string{"auth/login.go"}},
+		Tree: manifest.Tree{
+			Name: "test",
+			Features: map[string]manifest.Feature{
+				"auth": {
+					Files: []string{"auth/interface.go"},
+					Children: map[string]manifest.Feature{
+						"login": {Files: []string{"auth/login.go"}},
+					},
 				},
 			},
 		},
@@ -140,7 +149,10 @@ func TestLoadNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{},
+		Tree: manifest.Tree{
+			Name:     "test",
+			Features: map[string]manifest.Feature{},
+		},
 	}
 
 	manifestPath := filepath.Join(tmpDir, "feat.yaml")
