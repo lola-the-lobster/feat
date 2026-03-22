@@ -8,10 +8,31 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DefaultMaxFiles is the default maximum number of files per feature.
+const DefaultMaxFiles = 3
+
 // Manifest represents the root feat.yaml file.
 type Manifest struct {
+	// Config is optional project-wide configuration.
+	Config Config `yaml:"config,omitempty"`
+
 	// Tree is the root of the feature hierarchy.
 	Tree Tree `yaml:"tree"`
+}
+
+// Config holds project-wide configuration settings.
+type Config struct {
+	// MaxFiles is the maximum number of files (feature + ancestors) to load.
+	// Default is 3. Must be > 0.
+	MaxFiles int `yaml:"max_files,omitempty"`
+}
+
+// GetMaxFiles returns the max_files value, or the default if not set.
+func (c Config) GetMaxFiles() int {
+	if c.MaxFiles <= 0 {
+		return DefaultMaxFiles
+	}
+	return c.MaxFiles
 }
 
 // Tree represents the root node of the feature hierarchy.
@@ -201,6 +222,11 @@ func (m *Manifest) Validate() []string {
 
 	if len(m.Tree.Children) == 0 {
 		issues = append(issues, "manifest has no children defined")
+	}
+
+	// Validate config
+	if m.Config.MaxFiles < 0 {
+		issues = append(issues, "config.max_files must be >= 0")
 	}
 
 	for name, n := range m.Tree.Children {

@@ -9,6 +9,16 @@ import (
 	"github.com/lola-the-lobster/feat/internal/manifest"
 )
 
+// ContextLimitExceededError is returned when the total files exceeds max_files.
+type ContextLimitExceededError struct {
+	Total    int
+	MaxFiles int
+}
+
+func (e *ContextLimitExceededError) Error() string {
+	return fmt.Sprintf("context limit exceeded: %d files (max: %d)", e.Total, e.MaxFiles)
+}
+
 // Result contains the resolved feature and its context.
 type Result struct {
 	// FeaturePath is the full path to the feature (e.g., "auth/password-reset").
@@ -59,6 +69,19 @@ func (l *Loader) Load(featurePath string) (*Result, error) {
 
 	if !node.IsFeature() {
 		return nil, fmt.Errorf("'%s' is not a feature (it has children)", featurePath)
+	}
+
+	// Get max_files limit
+	maxFiles := l.manifest.Config.GetMaxFiles()
+
+	// Count total files (feature files + ancestor files)
+	// Note: tests don't count toward the limit
+	totalFiles := len(node.Files) + len(ancestors)
+	if totalFiles > maxFiles {
+		return nil, &ContextLimitExceededError{
+			Total:    totalFiles,
+			MaxFiles: maxFiles,
+		}
 	}
 
 	result := &Result{
