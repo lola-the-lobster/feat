@@ -14,8 +14,8 @@ type Result struct {
 	// FeaturePath is the full path to the feature (e.g., "auth/password-reset").
 	FeaturePath string
 
-	// Feature is the resolved feature node.
-	Feature *manifest.Feature
+	// Node is the resolved node.
+	Node *manifest.Node
 
 	// Files are the absolute paths to the feature's implementation files.
 	Files []string
@@ -48,30 +48,30 @@ func New(m *manifest.Manifest, manifestPath string) *Loader {
 
 // Load resolves a feature path and collects its files and ancestor files.
 func (l *Loader) Load(featurePath string) (*Result, error) {
-	feature, ancestors, err := l.manifest.GetFeature(featurePath)
+	node, ancestors, err := l.manifest.GetFeature(featurePath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving feature: %w", err)
 	}
 
-	if feature == nil {
+	if node == nil {
 		return nil, fmt.Errorf("feature not found: %s", featurePath)
 	}
 
-	if !feature.IsLeaf() {
-		return nil, fmt.Errorf("'%s' is not a leaf feature (it has no files)", featurePath)
+	if !node.IsFeature() {
+		return nil, fmt.Errorf("'%s' is not a feature (it has children)", featurePath)
 	}
 
 	result := &Result{
 		FeaturePath:   featurePath,
-		Feature:       feature,
-		Files:         make([]string, 0, len(feature.Files)),
-		Tests:         make([]string, 0, len(feature.Tests)),
+		Node:          node,
+		Files:         make([]string, 0, len(node.Files)),
+		Tests:         make([]string, 0, len(node.Tests)),
 		AncestorFiles: make([]string, 0, len(ancestors)),
 		MissingFiles:  []string{},
 	}
 
 	// Resolve implementation file paths relative to manifest directory
-	for _, file := range feature.Files {
+	for _, file := range node.Files {
 		absPath := l.resolvePath(file)
 		result.Files = append(result.Files, absPath)
 
@@ -82,7 +82,7 @@ func (l *Loader) Load(featurePath string) (*Result, error) {
 	}
 
 	// Resolve test file paths
-	for _, file := range feature.Tests {
+	for _, file := range node.Tests {
 		absPath := l.resolvePath(file)
 		result.Tests = append(result.Tests, absPath)
 

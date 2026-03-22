@@ -4,7 +4,7 @@ tree:
     - go.mod
     - go.sum
     - justfile
-  features:
+  children:
     cli:
       files:
         - cmd/feat/main.go

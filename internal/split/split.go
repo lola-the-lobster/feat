@@ -12,11 +12,11 @@ import (
 
 // Options configures the split operation.
 type Options struct {
-	// ParentPath is the path to the parent feature (e.g., "auth" or "auth/password-reset").
-	// Use empty string for root-level features.
+	// ParentPath is the path to the parent node (e.g., "auth" or "auth/password-reset").
+	// Use empty string for root-level nodes.
 	ParentPath string
 
-	// NewName is the name for the new feature (e.g., "confirmation").
+	// NewName is the name for the new node (e.g., "confirmation").
 	NewName string
 
 	// CreateFiles if true, creates empty files on disk.
@@ -28,8 +28,8 @@ type Options struct {
 
 // Result contains the outcome of a split operation.
 type Result struct {
-	// NewFeaturePath is the full path to the created feature.
-	NewFeaturePath string
+	// NewPath is the full path to the created node.
+	NewPath string
 
 	// FilesCreated are the files that were created on disk (if any).
 	FilesCreated []string
@@ -38,13 +38,13 @@ type Result struct {
 	ManifestUpdated bool
 }
 
-// Split creates a new feature under the given parent path.
+// Split creates a new node under the given parent path.
 func Split(m *manifest.Manifest, opts Options) (*Result, error) {
 	if opts.NewName == "" {
-		return nil, fmt.Errorf("new feature name cannot be empty")
+		return nil, fmt.Errorf("new name cannot be empty")
 	}
 	if strings.Contains(opts.NewName, "/") {
-		return nil, fmt.Errorf("new feature name cannot contain '/': %s", opts.NewName)
+		return nil, fmt.Errorf("new name cannot contain '/': %s", opts.NewName)
 	}
 
 	result := &Result{
@@ -52,18 +52,18 @@ func Split(m *manifest.Manifest, opts Options) (*Result, error) {
 	}
 
 	// Determine the full path and get the parent map
-	var parentMap map[string]manifest.Feature
-	var newFeaturePath string
+	var parentMap map[string]manifest.Node
+	var newPath string
 
 	if opts.ParentPath == "" {
-		// Root-level feature
-		if m.Features == nil {
-			m.Features = make(map[string]manifest.Feature)
+		// Root-level node
+		if m.Tree.Children == nil {
+			m.Tree.Children = make(map[string]manifest.Node)
 		}
-		parentMap = m.Features
-		newFeaturePath = opts.NewName
+		parentMap = m.Tree.Children
+		newPath = opts.NewName
 	} else {
-		// Nested feature
+		// Nested node
 		parts := splitPath(opts.ParentPath)
 		if len(parts) == 0 {
 			return nil, fmt.Errorf("invalid parent path: %s", opts.ParentPath)
@@ -75,29 +75,29 @@ func Split(m *manifest.Manifest, opts Options) (*Result, error) {
 		if err != nil {
 			return nil, err
 		}
-		newFeaturePath = opts.ParentPath + "/" + opts.NewName
+		newPath = opts.ParentPath + "/" + opts.NewName
 	}
 
-	result.NewFeaturePath = newFeaturePath
+	result.NewPath = newPath
 
-	// Check if feature already exists
+	// Check if node already exists
 	if _, exists := parentMap[opts.NewName]; exists {
-		return nil, fmt.Errorf("feature already exists: %s", newFeaturePath)
+		return nil, fmt.Errorf("node already exists: %s", newPath)
 	}
 
-	// Create the new feature (leaf with empty files list)
-	newFeature := manifest.Feature{
+	// Create the new node (feature with empty files list)
+	newNode := manifest.Node{
 		Files: []string{},
 	}
 
 	// Add to parent's children
-	parentMap[opts.NewName] = newFeature
+	parentMap[opts.NewName] = newNode
 
 	// Create files on disk if requested
 	if opts.CreateFiles {
-		files, err := createFeatureFiles(opts.ManifestDir, newFeaturePath, opts.NewName)
+		files, err := createNodeFiles(opts.ManifestDir, newPath, opts.NewName)
 		if err != nil {
-			return nil, fmt.Errorf("creating feature files: %w", err)
+			return nil, fmt.Errorf("creating node files: %w", err)
 		}
 		result.FilesCreated = files
 	}
@@ -106,68 +106,68 @@ func Split(m *manifest.Manifest, opts Options) (*Result, error) {
 	return result, nil
 }
 
-// navigateToParent navigates to the parent feature's Children map.
+// navigateToParent navigates to the parent node's Children map.
 // Creates intermediate nodes if they don't exist.
-func navigateToParent(m *manifest.Manifest, parts []string) (map[string]manifest.Feature, error) {
-	if m.Features == nil {
-		m.Features = make(map[string]manifest.Feature)
+func navigateToParent(m *manifest.Manifest, parts []string) (map[string]manifest.Node, error) {
+	if m.Tree.Children == nil {
+		m.Tree.Children = make(map[string]manifest.Node)
 	}
 
-	current := m.Features
+	current := m.Tree.Children
 
 	for i, part := range parts {
-		f, exists := current[part]
+		n, exists := current[part]
 		if !exists {
-			// Create intermediate node
-			f = manifest.Feature{
-				Children: make(map[string]manifest.Feature),
+			// Create intermediate boundary node
+			n = manifest.Node{
+				Children: make(map[string]manifest.Node),
 			}
-			current[part] = f
+			current[part] = n
 		}
 
-		// If this is a leaf, we can't add children
-		if f.IsLeaf() {
-			return nil, fmt.Errorf("cannot add children to leaf feature: %s", strings.Join(parts[:i+1], "/"))
+		// If this is a feature (leaf), we can't add children
+		if n.IsFeature() {
+			return nil, fmt.Errorf("cannot add children to feature: %s", strings.Join(parts[:i+1], "/"))
 		}
 
 		// If this is the last part, return its Children map
 		if i == len(parts)-1 {
-			if f.Children == nil {
-				f.Children = make(map[string]manifest.Feature)
-				current[part] = f
+			if n.Children == nil {
+				n.Children = make(map[string]manifest.Node)
+				current[part] = n
 			}
-			return f.Children, nil
+			return n.Children, nil
 		}
 
 		// Descend into children
-		if f.Children == nil {
-			f.Children = make(map[string]manifest.Feature)
-			current[part] = f
+		if n.Children == nil {
+			n.Children = make(map[string]manifest.Node)
+			current[part] = n
 		}
-		current = f.Children
+		current = n.Children
 	}
 
 	return current, nil
 }
 
-// createFeatureFiles creates empty files for a new feature.
-func createFeatureFiles(manifestDir, featurePath, featureName string) ([]string, error) {
+// createNodeFiles creates empty files for a new node.
+func createNodeFiles(manifestDir, nodePath, nodeName string) ([]string, error) {
 	// Create directory structure
-	dirPath := filepath.Join(manifestDir, featurePath)
+	dirPath := filepath.Join(manifestDir, nodePath)
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
 		return nil, fmt.Errorf("creating directory %s: %w", dirPath, err)
 	}
 
 	// Create a placeholder file
 	placeholder := filepath.Join(dirPath, ".feat")
-	if err := os.WriteFile(placeholder, []byte("# "+featureName+" feature\n"), 0644); err != nil {
+	if err := os.WriteFile(placeholder, []byte("# "+nodeName+" feature\n"), 0644); err != nil {
 		return nil, fmt.Errorf("creating placeholder file: %w", err)
 	}
 
 	return []string{placeholder}, nil
 }
 
-// splitPath splits a feature path into parts.
+// splitPath splits a path into parts.
 func splitPath(path string) []string {
 	var parts []string
 	for _, p := range strings.Split(path, "/") {
@@ -181,7 +181,7 @@ func splitPath(path string) []string {
 // FormatResult returns a human-readable string representation of the result.
 func FormatResult(r *Result) string {
 	var output string
-	output += fmt.Sprintf("Created feature: %s\n", r.NewFeaturePath)
+	output += fmt.Sprintf("Created node: %s\n", r.NewPath)
 
 	if len(r.FilesCreated) > 0 {
 		output += fmt.Sprintf("Files created: %d\n", len(r.FilesCreated))

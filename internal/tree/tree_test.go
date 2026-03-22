@@ -9,23 +9,26 @@ import (
 
 func TestPrint(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{
-			"auth": {
-				Files: []string{"auth/interface.go"},
-				Tests: []string{"auth/interface_test.go"},
-				Children: map[string]manifest.Feature{
-					"login": {
-						Files: []string{"auth/login.go"},
-						Tests: []string{"auth/login_test.go"},
-					},
-					"logout": {
-						Files: []string{"auth/logout.go"},
+		Tree: manifest.Tree{
+			Name: "my-project",
+			Children: map[string]manifest.Node{
+				"auth": {
+					Files: []string{"auth/interface.go"},
+					Tests: []string{"auth/interface_test.go"},
+					Children: map[string]manifest.Node{
+						"login": {
+							Files: []string{"auth/login.go"},
+							Tests: []string{"auth/login_test.go"},
+						},
+						"logout": {
+							Files: []string{"auth/logout.go"},
+						},
 					},
 				},
-			},
-			"payments": {
-				Files: []string{"payments.go"},
-				Tests: []string{"payments_test.go"},
+				"payments": {
+					Files: []string{"payments.go"},
+					Tests: []string{"payments_test.go"},
+				},
 			},
 		},
 	}
@@ -33,7 +36,7 @@ func TestPrint(t *testing.T) {
 	printer := NewPrinter()
 	output := printer.Print(m)
 
-	// Check that output contains expected features
+	// Check that output contains expected nodes
 	if !strings.Contains(output, "auth/") {
 		t.Error("Expected output to contain 'auth/'")
 	}
@@ -59,7 +62,10 @@ func TestPrint(t *testing.T) {
 
 func TestPrintEmpty(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{},
+		Tree: manifest.Tree{
+			Name:     "my-project",
+			Children: map[string]manifest.Node{},
+		},
 	}
 
 	printer := NewPrinter()
@@ -72,22 +78,25 @@ func TestPrintEmpty(t *testing.T) {
 
 func TestListPaths(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{
-			"auth": {
-				Files: []string{"auth/interface.go"},
-				Children: map[string]manifest.Feature{
-					"login": {Files: []string{"auth/login.go"}},
+		Tree: manifest.Tree{
+			Name: "my-project",
+			Children: map[string]manifest.Node{
+				"auth": {
+					Files: []string{"auth/interface.go"},
+					Children: map[string]manifest.Node{
+						"login": {Files: []string{"auth/login.go"}},
+					},
 				},
-			},
-			"payments": {
-				Files: []string{"payments.go"},
+				"payments": {
+					Files: []string{"payments.go"},
+				},
 			},
 		},
 	}
 
 	paths := ListPaths(m)
 
-	// Should include: auth/ (intermediate with files), auth/login (leaf), payments (leaf)
+	// Should include: auth/ (boundary with files), auth/login (feature), payments (feature)
 	if len(paths) != 3 {
 		t.Errorf("Expected 3 paths, got %d: %v", len(paths), paths)
 	}
@@ -127,7 +136,10 @@ func TestListPaths(t *testing.T) {
 
 func TestListPathsEmpty(t *testing.T) {
 	m := &manifest.Manifest{
-		Features: map[string]manifest.Feature{},
+		Tree: manifest.Tree{
+			Name:     "my-project",
+			Children: map[string]manifest.Node{},
+		},
 	}
 
 	paths := ListPaths(m)

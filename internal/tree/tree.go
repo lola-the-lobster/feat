@@ -23,22 +23,22 @@ func NewPrinter() *Printer {
 	}
 }
 
-// Print outputs the feature tree in a readable format.
+// Print outputs the tree in a readable format.
 // Format:
 //   auth/
-//     password-reset
-//     email-verification
+//     password-reset (feature)
+//     email-verification (feature)
 func (p *Printer) Print(m *manifest.Manifest) string {
 	var b strings.Builder
-	p.printFeatures(m.Features, 0, &b)
+	p.printChildren(m.Tree.Children, 0, &b)
 	return b.String()
 }
 
-// printFeatures recursively prints features in sorted order.
-func (p *Printer) printFeatures(features map[string]manifest.Feature, depth int, b *strings.Builder) {
+// printChildren recursively prints nodes in sorted order.
+func (p *Printer) printChildren(children map[string]manifest.Node, depth int, b *strings.Builder) {
 	// Sort keys for consistent output
-	names := make([]string, 0, len(features))
-	for name := range features {
+	names := make([]string, 0, len(children))
+	for name := range children {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -46,43 +46,43 @@ func (p *Printer) printFeatures(features map[string]manifest.Feature, depth int,
 	indent := strings.Repeat(p.IndentString, depth)
 
 	for _, name := range names {
-		feature := features[name]
-		p.printFeature(name, feature, indent, depth, b)
+		node := children[name]
+		p.printNode(name, node, indent, depth, b)
 	}
 }
 
-// printFeature prints a single feature node.
-func (p *Printer) printFeature(name string, f manifest.Feature, indent string, depth int, b *strings.Builder) {
-	if f.IsLeaf() {
-		// Leaf feature: just print the name
-		fmt.Fprintf(b, "%s%s\n", indent, name)
+// printNode prints a single node.
+func (p *Printer) printNode(name string, n manifest.Node, indent string, depth int, b *strings.Builder) {
+	if n.IsFeature() {
+		// Feature (leaf): print the name with (feature)
+		fmt.Fprintf(b, "%s%s (feature)\n", indent, name)
 	} else {
-		// Intermediate node: print name with trailing slash
+		// Boundary (intermediate): print name with trailing slash
 		fmt.Fprintf(b, "%s%s/\n", indent, name)
 		// Recurse into children
-		if len(f.Children) > 0 {
-			p.printFeatures(f.Children, depth+1, b)
+		if len(n.Children) > 0 {
+			p.printChildren(n.Children, depth+1, b)
 		}
 	}
 }
 
-// ListFormat returns a simple list of all feature paths (for machine-readable output).
+// ListPaths returns a simple list of all feature paths (for machine-readable output).
 func ListPaths(m *manifest.Manifest) []string {
 	var paths []string
-	collectPaths(m.Features, "", &paths)
+	collectPaths(m.Tree.Children, "", &paths)
 	return paths
 }
 
 // collectPaths recursively collects all feature paths.
-func collectPaths(features map[string]manifest.Feature, prefix string, paths *[]string) {
-	names := make([]string, 0, len(features))
-	for name := range features {
+func collectPaths(children map[string]manifest.Node, prefix string, paths *[]string) {
+	names := make([]string, 0, len(children))
+	for name := range children {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
 	for _, name := range names {
-		feature := features[name]
+		node := children[name]
 		var path string
 		if prefix == "" {
 			path = name
@@ -90,16 +90,16 @@ func collectPaths(features map[string]manifest.Feature, prefix string, paths *[]
 			path = prefix + "/" + name
 		}
 
-		if feature.IsLeaf() {
+		if node.IsFeature() {
 			*paths = append(*paths, path)
 		} else {
-			// Intermediate nodes with files can be valid targets
-			if len(feature.Files) > 0 {
+			// Boundaries with files can be valid targets
+			if len(node.Files) > 0 {
 				*paths = append(*paths, path+"/")
 			}
 			// Recurse into children
-			if len(feature.Children) > 0 {
-				collectPaths(feature.Children, path, paths)
+			if len(node.Children) > 0 {
+				collectPaths(node.Children, path, paths)
 			}
 		}
 	}
