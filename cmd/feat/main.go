@@ -2,12 +2,14 @@ package main
 
 import (
 	exitcodes "github.com/lola-the-lobster/feat/internal/errors"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/lola-the-lobster/feat/internal/formatter"
 	"github.com/lola-the-lobster/feat/internal/loader"
 	"github.com/lola-the-lobster/feat/internal/manifest"
 	"github.com/lola-the-lobster/feat/internal/split"
@@ -20,67 +22,95 @@ var (
 	commit  = "unknown"
 )
 
+// Global flags
+var (
+	jsonOutput bool
+)
+
 func main() {
-	if len(os.Args) < 2 {
+	// Parse global flags before command
+	args := os.Args[1:]
+	for i, arg := range args {
+		if arg == "--json" {
+			jsonOutput = true
+			// Remove --json from args
+			args = append(args[:i], args[i+1:]...)
+			break
+		}
+	}
+
+	if len(args) < 1 {
 		printUsage()
 		os.Exit(exitcodes.ExitGeneralError)
 	}
 
 	// Handle version flag
-	if os.Args[1] == "-v" || os.Args[1] == "--version" || os.Args[1] == "version" {
-		fmt.Printf("feat version %s (commit: %s)\n", version, commit)
+	if args[0] == "-v" || args[0] == "--version" || args[0] == "version" {
+		if jsonOutput {
+			fmt.Printf(`{"version": "%s", "commit": "%s"}`+"\n", version, commit)
+		} else {
+			fmt.Printf("feat version %s (commit: %s)\n", version, commit)
+		}
 		os.Exit(exitcodes.ExitSuccess)
 	}
 
 	// Handle help flag
-	if os.Args[1] == "-h" || os.Args[1] == "--help" || os.Args[1] == "help" {
+	if args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
 		printUsage()
 		os.Exit(exitcodes.ExitSuccess)
 	}
 
-	command := os.Args[1]
+	command := args[0]
+	os.Args = append([]string{os.Args[0]}, args...)
 
 	switch command {
 	case "init":
 		if err := runInit(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(exitcodes.ExitGeneralError)
+			printError(err, exitcodes.ExitGeneralError)
 		}
 	case "list":
 		if err := runList(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(exitcodes.ExitGeneralError)
+			printError(err, exitcodes.ExitGeneralError)
 		}
 	case "parse":
 		if err := runParse(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(exitcodes.ExitGeneralError)
+			printError(err, exitcodes.ExitGeneralError)
 		}
 	case "split":
 		if err := runSplit(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(exitcodes.ExitGeneralError)
+			printError(err, exitcodes.ExitGeneralError)
 		}
 	case "status":
 		if err := runStatus(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(exitcodes.ExitGeneralError)
+			printError(err, exitcodes.ExitGeneralError)
 		}
 	case "validate":
 		if err := runValidate(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(exitcodes.ExitGeneralError)
+			printError(err, exitcodes.ExitGeneralError)
 		}
 	case "work":
 		if err := runWork(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(exitcodes.ExitGeneralError)
+			printError(err, exitcodes.ExitGeneralError)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)
-		fmt.Fprintln(os.Stderr, "Run 'feat help' for usage.")
-		os.Exit(exitcodes.ExitGeneralError)
+		err := fmt.Errorf("unknown command: %s", command)
+		printError(err, exitcodes.ExitGeneralError)
 	}
+}
+
+// printError prints an error in text or JSON format depending on --json flag.
+func printError(err error, code int) {
+	if jsonOutput {
+		output := map[string]interface{}{
+			"error": err.Error(),
+			"code":  code,
+		}
+		data, _ := json.Marshal(output)
+		fmt.Fprintln(os.Stderr, string(data))
+	} else {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	}
+	os.Exit(code)
 }
 
 func printUsage() {
@@ -100,11 +130,13 @@ func printUsage() {
 	fmt.Println("  help              Show this help message")
 	fmt.Println()
 	fmt.Println("Global flags:")
+	fmt.Println("  --json            Output in JSON format")
 	fmt.Println("  -f <path>         Path to manifest file (default: feat.yaml)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  feat init                    # Create new manifest")
 	fmt.Println("  feat list                    # Show all features")
+	fmt.Println("  feat list --json             # Show features as JSON")
 	fmt.Println("  feat work auth/login         # Work on auth/login feature")
 	fmt.Println("  feat split auth login-v2     # Create auth/login-v2 feature")
 	fmt.Println("  feat status                  # Show current feature")
@@ -135,10 +167,20 @@ func runInit() error {
 		return fmt.Errorf("creating manifest: %w", err)
 	}
 
-	fmt.Printf("Created manifest: %s\n", absPath)
-	fmt.Printf("Project name: %s\n", projectName)
-	fmt.Println("Add features to get started:")
-	fmt.Println("  feat split \"\" my-feature")
+	if jsonOutput {
+		output := map[string]interface{}{
+			"manifest": absPath,
+			"project":  projectName,
+			"message":  "Created manifest",
+		}
+		data, _ := json.MarshalIndent(output, "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Printf("Created manifest: %s\n", absPath)
+		fmt.Printf("Project name: %s\n", projectName)
+		fmt.Println("Add features to get started:")
+		fmt.Println("  feat split \"\" my-feature")
+	}
 
 	return nil
 }
@@ -162,13 +204,30 @@ func runList() error {
 	}
 
 	if len(m.Tree.Children) == 0 {
-		fmt.Println("No children defined in manifest.")
-		fmt.Println("Create one with: feat split \"\" <feature-name>")
+		if jsonOutput {
+			output := map[string]interface{}{
+				"project":  m.Tree.Name,
+				"features": []interface{}{},
+			}
+			data, _ := json.MarshalIndent(output, "", "  ")
+			fmt.Println(string(data))
+		} else {
+			fmt.Println("No children defined in manifest.")
+			fmt.Println("Create one with: feat split \"\" <feature-name>")
+		}
 		return nil
 	}
 
-	printer := tree.NewPrinter()
-	fmt.Print(printer.Print(m))
+	if jsonOutput {
+		data, err := formatter.FormatListJSON(m)
+		if err != nil {
+			return fmt.Errorf("formatting JSON: %w", err)
+		}
+		fmt.Println(string(data))
+	} else {
+		printer := tree.NewPrinter()
+		fmt.Print(printer.Print(m))
+	}
 
 	return nil
 }
@@ -214,7 +273,17 @@ func runSplit() error {
 		return fmt.Errorf("saving manifest: %w", err)
 	}
 
-	fmt.Print(split.FormatResult(result))
+	if jsonOutput {
+		output := map[string]interface{}{
+			"path":     result.NewPath,
+			"files":    result.FilesCreated,
+			"manifest": absPath,
+		}
+		data, _ := json.MarshalIndent(output, "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Print(split.FormatResult(result))
+	}
 
 	return nil
 }
@@ -240,7 +309,35 @@ func runStatus() error {
 		return fmt.Errorf("reading state: %w", err)
 	}
 
-	fmt.Print(state.FormatState(s))
+	// Load the feature if there's a current one
+	var result *loader.Result
+	if s != nil && s.FeaturePath != "" {
+		m, err := manifest.Load(absPath)
+		if err != nil {
+			return fmt.Errorf("loading manifest: %w", err)
+		}
+
+		l := loader.New(m, absPath)
+		result, err = l.Load(s.FeaturePath)
+		if err != nil {
+			// Don't fail if feature not found, just don't include files
+			result = nil
+		}
+	}
+
+	if jsonOutput {
+		data, err := formatter.FormatStatusJSON(s, result)
+		if err != nil {
+			return fmt.Errorf("formatting JSON: %w", err)
+		}
+		fmt.Println(string(data))
+	} else {
+		fmt.Print(state.FormatState(s))
+		if result != nil {
+			fmt.Println()
+			fmt.Print(loader.FormatResult(result))
+		}
+	}
 
 	return nil
 }
@@ -264,14 +361,23 @@ func runValidate() error {
 	}
 
 	issues := m.Validate()
-	if len(issues) == 0 {
-		fmt.Println("✓ Manifest is valid")
-		return nil
-	}
 
-	fmt.Printf("Found %d issue(s):\n", len(issues))
-	for _, issue := range issues {
-		fmt.Printf("  - %s\n", issue)
+	if jsonOutput {
+		output := map[string]interface{}{
+			"valid":  len(issues) == 0,
+			"issues": issues,
+		}
+		data, _ := json.MarshalIndent(output, "", "  ")
+		fmt.Println(string(data))
+	} else {
+		if len(issues) == 0 {
+			fmt.Println("✓ Manifest is valid")
+		} else {
+			fmt.Printf("Found %d issue(s):\n", len(issues))
+			for _, issue := range issues {
+				fmt.Printf("  - %s\n", issue)
+			}
+		}
 	}
 
 	return nil
@@ -313,7 +419,19 @@ func runWork() error {
 		return fmt.Errorf("saving state: %w", err)
 	}
 
-	fmt.Print(loader.FormatResult(result))
+	if jsonOutput {
+		output := map[string]interface{}{
+			"feature":   result.FeaturePath,
+			"files":     result.Files,
+			"tests":     result.Tests,
+			"ancestors": result.AncestorFiles,
+			"missing":   result.MissingFiles,
+		}
+		data, _ := json.MarshalIndent(output, "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Print(loader.FormatResult(result))
+	}
 
 	return nil
 }
@@ -336,13 +454,49 @@ func runParse() error {
 		return fmt.Errorf("loading manifest: %w", err)
 	}
 
-	fmt.Printf("Manifest: %s\n", absPath)
-	fmt.Printf("Project: %s\n", m.Tree.Name)
-	if len(m.Tree.Files) > 0 {
-		fmt.Printf("Root files: %v\n", m.Tree.Files)
+	if jsonOutput {
+		// Marshal the manifest directly to JSON
+		type NodeJSON struct {
+			Files    []string            `json:"files,omitempty"`
+			Tests    []string            `json:"tests,omitempty"`
+			Children map[string]NodeJSON `json:"children,omitempty"`
+		}
+
+		var convertNode func(n manifest.Node) NodeJSON
+		convertNode = func(n manifest.Node) NodeJSON {
+			result := NodeJSON{
+				Files: n.Files,
+				Tests: n.Tests,
+			}
+			if len(n.Children) > 0 {
+				result.Children = make(map[string]NodeJSON)
+				for name, child := range n.Children {
+					result.Children[name] = convertNode(child)
+				}
+			}
+			return result
+		}
+
+		output := map[string]interface{}{
+			"project": m.Tree.Name,
+			"files":   m.Tree.Files,
+			"config": map[string]interface{}{
+				"max_files": m.Config.GetMaxFiles(),
+			},
+			"children": convertNode(manifest.Node{Children: m.Tree.Children}),
+		}
+
+		data, _ := json.MarshalIndent(output, "", "  ")
+		fmt.Println(string(data))
+	} else {
+		fmt.Printf("Manifest: %s\n", absPath)
+		fmt.Printf("Project: %s\n", m.Tree.Name)
+		if len(m.Tree.Files) > 0 {
+			fmt.Printf("Root files: %v\n", m.Tree.Files)
+		}
+		fmt.Println()
+		printManifest(m, 0)
 	}
-	fmt.Println()
-	printManifest(m, 0)
 
 	return nil
 }
