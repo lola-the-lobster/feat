@@ -173,16 +173,21 @@ func TestLoadMaxFilesExceeded(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create manifest with max_files = 2
+	// Feature has 3 direct files, which exceeds max_files
 	m := &manifest.Manifest{
 		Config: manifest.Config{MaxFiles: 2},
 		Tree: manifest.Tree{
 			Name: "test",
 			Children: map[string]manifest.Node{
 				"auth": {
-					Files: []string{"auth/interface.go", "auth/types.go"}, // 2 ancestor files
+					Files: []string{"auth/interface.go"}, // 1 ancestor file
 					Children: map[string]manifest.Node{
 						"login": {
-							Files: []string{"auth/login/handler.go"}, // 1 file = 3 total
+							Files: []string{
+								"auth/login/handler.go",
+								"auth/login/types.go",
+								"auth/login/validator.go", // 3 files, exceeds max_files=2
+							},
 						},
 					},
 				},
@@ -261,7 +266,7 @@ func TestLoadMaxFilesWithinLimit(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	// Should succeed - 2 files total (1 + 1) <= 3 max_files
+	// Should succeed - 1 file <= 3 max_files
 	if len(result.Files) != 1 {
 		t.Errorf("Expected 1 file, got %d", len(result.Files))
 	}
@@ -274,15 +279,21 @@ func TestLoadMaxFilesDefault(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create manifest without config (uses default = 3)
+	// Feature has 4 direct files, which exceeds default max_files=3
 	m := &manifest.Manifest{
 		Tree: manifest.Tree{
 			Name: "test",
 			Children: map[string]manifest.Node{
 				"auth": {
-					Files: []string{"auth/interface.go", "auth/types.go", "auth/config.go"}, // 3 ancestor files
+					Files: []string{"auth/interface.go"}, // 1 ancestor file
 					Children: map[string]manifest.Node{
 						"login": {
-							Files: []string{"auth/login/handler.go"}, // 1 file = 4 total
+							Files: []string{
+								"auth/login/handler.go",
+								"auth/login/types.go",
+								"auth/login/validator.go",
+								"auth/login/errors.go", // 4 files, exceeds default max_files=3
+							},
 						},
 					},
 				},
