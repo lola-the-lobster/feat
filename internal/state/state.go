@@ -11,6 +11,9 @@ import (
 
 const StateDirName = ".feat"
 
+// ValidStates are the allowed workflow states for a feature.
+var ValidStates = []string{"scaffold", "fix", "build", "test", "done"}
+
 // Manager handles state operations for a project.
 type Manager struct {
 	projectRoot string
@@ -85,10 +88,75 @@ func (m *Manager) Clear() error {
 	return nil
 }
 
+// GetFeatureState returns the current workflow state for a feature.
+// Returns "scaffold" if no state is set (default).
+func (m *Manager) GetFeatureState(featurePath string) (string, error) {
+	if err := m.Init(); err != nil {
+		return "", err
+	}
+
+	featureDir := m.GetFeatureDir(featurePath)
+	statePath := filepath.Join(featureDir, "state")
+
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// Default state for new features
+			return "scaffold", nil
+		}
+		return "", fmt.Errorf("reading feature state: %w", err)
+	}
+
+	state := strings.TrimSpace(string(data))
+	if state == "" {
+		return "scaffold", nil
+	}
+	return state, nil
+}
+
+// SetFeatureState updates the workflow state for a feature.
+func (m *Manager) SetFeatureState(featurePath string, state string) error {
+	if err := m.Init(); err != nil {
+		return err
+	}
+
+	// Validate state
+	valid := false
+	for _, s := range ValidStates {
+		if s == state {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("invalid state: %s", state)
+	}
+
+	featureDir := m.GetFeatureDir(featurePath)
+	if err := os.MkdirAll(featureDir, 0755); err != nil {
+		return fmt.Errorf("creating feature directory: %w", err)
+	}
+
+	statePath := filepath.Join(featureDir, "state")
+	if err := os.WriteFile(statePath, []byte(state+"\n"), 0644); err != nil {
+		return fmt.Errorf("writing feature state: %w", err)
+	}
+
+	return nil
+}
+
 // FormatState formats the current feature state for display.
 func FormatState(featurePath string) string {
 	if featurePath == "" {
 		return "No active feature\n"
 	}
 	return fmt.Sprintf("Current feature: %s\n", featurePath)
+}
+
+// FormatFeatureStatus returns a formatted status string for a feature including its state.
+func FormatFeatureStatus(featurePath string, state string) string {
+	if featurePath == "" {
+		return "No active feature\n"
+	}
+	return fmt.Sprintf("Feature: %s\nState: %s\n", featurePath, state)
 }

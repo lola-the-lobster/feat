@@ -84,6 +84,11 @@ func main() {
 		if err := runStatus(); err != nil {
 			printError(err, exitcodes.ExitGeneralError)
 		}
+	case "transition":
+		if err := runTransition(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(exitcodes.ExitGeneralError)
+		}
 	case "validate":
 		if err := runValidate(); err != nil {
 			printError(err, exitcodes.ExitGeneralError)
@@ -124,6 +129,7 @@ func printUsage() {
 	fmt.Println("  parse             Parse feat.yaml and dump structure")
 	fmt.Println("  split <parent> <name>  Create a new feature")
 	fmt.Println("  status            Show current feature context")
+	fmt.Println("  transition        Update feature workflow state")
 	fmt.Println("  validate          Check manifest for issues")
 	fmt.Println("  work <feature>    Load a feature's context")
 	fmt.Println("  version           Show version information")
@@ -140,6 +146,7 @@ func printUsage() {
 	fmt.Println("  feat work auth/login         # Work on auth/login feature")
 	fmt.Println("  feat split auth login-v2     # Create auth/login-v2 feature")
 	fmt.Println("  feat status                  # Show current feature")
+	fmt.Println("  feat transition build        # Mark feature as 'build' state")
 	fmt.Println("  feat validate                # Check for issues")
 }
 
@@ -201,6 +208,14 @@ func runList() error {
 	m, err := manifest.Load(absPath)
 	if err != nil {
 		return fmt.Errorf("loading manifest: %w", err)
+	}
+
+	// Show current feature if set
+	projectRoot := filepath.Dir(absPath)
+	mgr := state.NewManager(projectRoot)
+	current, _ := mgr.GetCurrent()
+	if current != "" {
+		fmt.Printf("Current feature: %s\n\n", current)
 	}
 
 	if len(m.Tree.Children) == 0 {
@@ -338,6 +353,81 @@ func runStatus() error {
 			fmt.Print(loader.FormatResult(result))
 		}
 	}
+
+	return nil
+}
+
+func runTransition() error {
+	if len(os.Args) < 3 {
+		return fmt.Errorf("usage: feat transition <state>\n\nValid states: scaffold, fix, build, test, done")
+	}
+
+	newState := os.Args[2]
+	validStates := map[string]bool{
+		"scaffold": true,
+		"fix":      true,
+		"build":    true,
+		"test":     true,
+		"done":     true,
+	}
+
+	if !validStates[newState] {
+		return fmt.Errorf("invalid state: %s\nValid states: scaffold, fix, build, test, done", newState)
+	}
+
+	fs := flag.NewFlagSet("transition", flag.ContinueOnError)
+	var manifestPath string
+	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
+	if err := fs.Parse(os.Args[3:]); err != nil {
+		return err
+	}
+
+	absPath, err := resolveManifestPath(manifestPath)
+	if err != nil {
+		return err
+	}
+
+	projectRoot := filepath.Dir(absPath)
+	mgr := state.NewManager(projectRoot)
+
+	// Get current feature
+	currentFeature, err := mgr.GetCurrent()
+	if err != nil {
+		return fmt.Errorf("reading current feature: %w", err)
+	}
+
+	if currentFeature == "" {
+		return fmt.Errorf("no active feature. Run 'feat work <feature>' first")
+	}
+
+	// Validate transition
+	currentState, err := mgr.GetFeatureState(currentFeature)
+	if err != nil {
+		return fmt.Errorf("reading feature state: %w", err)
+	}
+
+	// Simple validation - cannot skip states
+	stateOrder := []string{"scaffold", "fix", "build", "test", "done"}
+	currentIdx := -1
+	newIdx := -1
+	for i, s := range stateOrder {
+		if s == currentState {
+			currentIdx = i
+		}
+		if s == newState {
+			newIdx = i
+		}
+	}
+
+	if newIdx < currentIdx {
+		return fmt.Errorf("cannot transition from %s back to %s", currentState, newState)
+	}
+
+	if err := mgr.SetFeatureState(currentFeature, newState); err != nil {
+		return fmt.Errorf("saving state: %w", err)
+	}
+
+	fmt.Printf("Feature '%s' transitioned: %s → %s\n", currentFeature, currentState, newState)
 
 	return nil
 }
