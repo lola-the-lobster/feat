@@ -11,6 +11,9 @@ import (
 // DefaultMaxFiles is the default maximum number of files per feature.
 const DefaultMaxFiles = 3
 
+// DefaultWorkflow is the default workflow steps for features.
+var DefaultWorkflow = []string{"scaffold", "fix", "build", "test", "done"}
+
 // Manifest represents the root feat.yaml file.
 type Manifest struct {
 	// Config is optional project-wide configuration.
@@ -25,6 +28,10 @@ type Config struct {
 	// MaxFiles is the maximum number of files (feature + ancestors) to load.
 	// Default is 3. Must be > 0.
 	MaxFiles int `yaml:"max_files,omitempty"`
+
+	// Workflow is the list of workflow steps for features.
+	// Default is ["scaffold", "fix", "build", "test", "done"].
+	Workflow []string `yaml:"workflow,omitempty"`
 }
 
 // GetMaxFiles returns the max_files value, or the default if not set.
@@ -33,6 +40,14 @@ func (c Config) GetMaxFiles() int {
 		return DefaultMaxFiles
 	}
 	return c.MaxFiles
+}
+
+// GetWorkflow returns the workflow steps, or the default if not set.
+func (c Config) GetWorkflow() []string {
+	if len(c.Workflow) == 0 {
+		return DefaultWorkflow
+	}
+	return c.Workflow
 }
 
 // Tree represents the root node of the feature hierarchy.
@@ -227,6 +242,15 @@ func (m *Manifest) Validate() []string {
 	// Validate config
 	if m.Config.MaxFiles < 0 {
 		issues = append(issues, "config.max_files must be >= 0")
+	}
+
+	// Validate workflow if specified
+	if len(m.Config.Workflow) > 0 {
+		for i, step := range m.Config.Workflow {
+			if step == "" {
+				issues = append(issues, fmt.Sprintf("config.workflow[%d] is empty", i))
+			}
+		}
 	}
 
 	for name, n := range m.Tree.Children {
