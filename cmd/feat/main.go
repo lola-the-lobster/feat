@@ -1,7 +1,6 @@
 package main
 
 import (
-	exitcodes "github.com/lola-the-lobster/feat/internal/errors"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	exitcodes "github.com/lola-the-lobster/feat/internal/errors"
 	"github.com/lola-the-lobster/feat/internal/formatter"
 	"github.com/lola-the-lobster/feat/internal/loader"
 	"github.com/lola-the-lobster/feat/internal/manifest"
@@ -319,7 +319,15 @@ func runStatus() error {
 	projectRoot := filepath.Dir(absPath)
 	mgr := state.NewManager(projectRoot)
 
-	s, err := mgr.GetCurrent()
+	// Load manifest to get workflow for step display
+	m, err := manifest.Load(absPath)
+	if err != nil {
+		return fmt.Errorf("loading manifest: %w", err)
+	}
+
+	mgr.SetWorkflow(m.Config.GetWorkflow())
+
+	currentFeature, err := mgr.GetCurrent()
 	if err != nil {
 		return fmt.Errorf("reading state: %w", err)
 	}
@@ -354,41 +362,61 @@ func runStatus() error {
 		}
 	}
 
+	if currentFeature == "" {
+		fmt.Print(state.FormatState(""))
+		return nil
+	}
+
+	currentStep, err := mgr.GetFeatureStep(currentFeature)
+	if err != nil {
+		return fmt.Errorf("reading feature step: %w", err)
+	}
+
+	fmt.Print(state.FormatFeatureStatus(currentFeature, currentStep))
+
 	return nil
 }
 
 func runTransition() error {
-	if len(os.Args) < 3 {
-		return fmt.Errorf("usage: feat transition <state>\n\nValid states: scaffold, fix, build, test, done")
-	}
-
-	newState := os.Args[2]
-	validStates := map[string]bool{
-		"scaffold": true,
-		"fix":      true,
-		"build":    true,
-		"test":     true,
-		"done":     true,
-	}
-
-	if !validStates[newState] {
-		return fmt.Errorf("invalid state: %s\nValid states: scaffold, fix, build, test, done", newState)
-	}
-
 	fs := flag.NewFlagSet("transition", flag.ContinueOnError)
 	var manifestPath string
 	fs.StringVar(&manifestPath, "f", "feat.yaml", "Path to manifest file")
-	if err := fs.Parse(os.Args[3:]); err != nil {
+	if err := fs.Parse(os.Args[2:]); err != nil {
 		return err
 	}
+
+	if len(fs.Args()) < 1 {
+		return fmt.Errorf("usage: feat transition <step>\n\nExamples:\n  feat transition tests\n  feat transition implement")
+	}
+
+	newStep := fs.Args()[0]
 
 	absPath, err := resolveManifestPath(manifestPath)
 	if err != nil {
 		return err
 	}
 
+	// Load manifest for workflow validation
+	m, err := manifest.Load(absPath)
+	if err != nil {
+		return fmt.Errorf("loading manifest: %w", err)
+	}
+
+	workflow := m.Config.GetWorkflow()
+
+	// Build valid steps map
+	validSteps := make(map[string]bool)
+	for _, step := range workflow {
+		validSteps[step] = true
+	}
+
+	if !validSteps[newStep] {
+		return fmt.Errorf("invalid step: %s\nValid steps: %v", newStep, workflow)
+	}
+
 	projectRoot := filepath.Dir(absPath)
 	mgr := state.NewManager(projectRoot)
+	mgr.SetWorkflow(workflow)
 
 	// Get current feature
 	currentFeature, err := mgr.GetCurrent()
@@ -400,34 +428,33 @@ func runTransition() error {
 		return fmt.Errorf("no active feature. Run 'feat work <feature>' first")
 	}
 
-	// Validate transition
-	currentState, err := mgr.GetFeatureState(currentFeature)
+	// Get current step
+	currentStep, err := mgr.GetFeatureStep(currentFeature)
 	if err != nil {
-		return fmt.Errorf("reading feature state: %w", err)
+		return fmt.Errorf("reading feature step: %w", err)
 	}
 
-	// Simple validation - cannot skip states
-	stateOrder := []string{"scaffold", "fix", "build", "test", "done"}
+	// Simple validation - cannot go backwards in workflow
 	currentIdx := -1
 	newIdx := -1
-	for i, s := range stateOrder {
-		if s == currentState {
+	for i, s := range workflow {
+		if s == currentStep {
 			currentIdx = i
 		}
-		if s == newState {
+		if s == newStep {
 			newIdx = i
 		}
 	}
 
 	if newIdx < currentIdx {
-		return fmt.Errorf("cannot transition from %s back to %s", currentState, newState)
+		return fmt.Errorf("cannot transition from %s back to %s", currentStep, newStep)
 	}
 
-	if err := mgr.SetFeatureState(currentFeature, newState); err != nil {
-		return fmt.Errorf("saving state: %w", err)
+	if err := mgr.SetFeatureStep(currentFeature, newStep); err != nil {
+		return fmt.Errorf("saving step: %w", err)
 	}
 
-	fmt.Printf("Feature '%s' transitioned: %s → %s\n", currentFeature, currentState, newState)
+	fmt.Printf("Feature '%s' transitioned: %s → %s\n", currentFeature, currentStep, newStep)
 
 	return nil
 }
