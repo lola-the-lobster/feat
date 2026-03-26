@@ -117,3 +117,59 @@ func TestSanitizeFeaturePath(t *testing.T) {
 		}
 	}
 }
+
+func TestSetAndGetFeatureStep(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Set workflow for default step
+	mgr.SetWorkflow([]string{"spec", "tests", "implement", "docs"})
+
+	// Set step
+	if err := mgr.SetFeatureStep("auth/login", "tests"); err != nil {
+		t.Fatalf("SetFeatureStep failed: %v", err)
+	}
+
+	// Get step
+	step, err := mgr.GetFeatureStep("auth/login")
+	if err != nil {
+		t.Fatalf("GetFeatureStep failed: %v", err)
+	}
+
+	if step != "tests" {
+		t.Errorf("GetFeatureStep() = %q, want %q", step, "tests")
+	}
+}
+
+func TestGetFeatureStepDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// Set workflow so we have a default
+	mgr.SetWorkflow([]string{"spec", "tests", "implement", "docs"})
+
+	// Get step without setting (should return first workflow step)
+	step, err := mgr.GetFeatureStep("auth/login")
+	if err != nil {
+		t.Fatalf("GetFeatureStep failed: %v", err)
+	}
+
+	if step != "spec" {
+		t.Errorf("GetFeatureStep() = %q, want %q (default)", step, "spec")
+	}
+}
+
+func TestGetFeatureStepNoWorkflow(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := NewManager(tmpDir)
+
+	// No workflow set - should return empty string
+	step, err := mgr.GetFeatureStep("auth/login")
+	if err != nil {
+		t.Fatalf("GetFeatureStep failed: %v", err)
+	}
+
+	if step != "" {
+		t.Errorf("GetFeatureStep() = %q, want empty string", step)
+	}
+}

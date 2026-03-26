@@ -11,13 +11,11 @@ import (
 
 const StateDirName = ".feat"
 
-// ValidStates are the allowed workflow states for a feature.
-var ValidStates = []string{"scaffold", "fix", "build", "test", "done"}
-
 // Manager handles state operations for a project.
 type Manager struct {
 	projectRoot string
 	stateDir    string
+	workflow    []string // Workflow steps from manifest
 }
 
 // NewManager creates a state manager for the given project root.
@@ -25,7 +23,22 @@ func NewManager(projectRoot string) *Manager {
 	return &Manager{
 		projectRoot: projectRoot,
 		stateDir:    filepath.Join(projectRoot, StateDirName),
+		workflow:    nil,
 	}
+}
+
+// SetWorkflow sets the workflow steps for the manager.
+// Used to provide default step when no step is set.
+func (m *Manager) SetWorkflow(workflow []string) {
+	m.workflow = workflow
+}
+
+// getDefaultStep returns the first step in the workflow, or empty string if no workflow set.
+func (m *Manager) getDefaultStep() string {
+	if len(m.workflow) > 0 {
+		return m.workflow[0]
+	}
+	return ""
 }
 
 // Init creates the .feat/ directory structure if it doesn't exist.
@@ -88,48 +101,36 @@ func (m *Manager) Clear() error {
 	return nil
 }
 
-// GetFeatureState returns the current workflow state for a feature.
-// Returns "scaffold" if no state is set (default).
-func (m *Manager) GetFeatureState(featurePath string) (string, error) {
+// GetFeatureStep returns the current workflow step for a feature.
+// Returns the first step in the workflow if no step is set (default).
+func (m *Manager) GetFeatureStep(featurePath string) (string, error) {
 	if err := m.Init(); err != nil {
 		return "", err
 	}
 
 	featureDir := m.GetFeatureDir(featurePath)
-	statePath := filepath.Join(featureDir, "state")
+	stepPath := filepath.Join(featureDir, "step")
 
-	data, err := os.ReadFile(statePath)
+	data, err := os.ReadFile(stepPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Default state for new features
-			return "scaffold", nil
+			// Default step for new features
+			return m.getDefaultStep(), nil
 		}
-		return "", fmt.Errorf("reading feature state: %w", err)
+		return "", fmt.Errorf("reading feature step: %w", err)
 	}
 
-	state := strings.TrimSpace(string(data))
-	if state == "" {
-		return "scaffold", nil
+	step := strings.TrimSpace(string(data))
+	if step == "" {
+		return m.getDefaultStep(), nil
 	}
-	return state, nil
+	return step, nil
 }
 
-// SetFeatureState updates the workflow state for a feature.
-func (m *Manager) SetFeatureState(featurePath string, state string) error {
+// SetFeatureStep updates the workflow step for a feature.
+func (m *Manager) SetFeatureStep(featurePath string, step string) error {
 	if err := m.Init(); err != nil {
 		return err
-	}
-
-	// Validate state
-	valid := false
-	for _, s := range ValidStates {
-		if s == state {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		return fmt.Errorf("invalid state: %s", state)
 	}
 
 	featureDir := m.GetFeatureDir(featurePath)
@@ -137,9 +138,9 @@ func (m *Manager) SetFeatureState(featurePath string, state string) error {
 		return fmt.Errorf("creating feature directory: %w", err)
 	}
 
-	statePath := filepath.Join(featureDir, "state")
-	if err := os.WriteFile(statePath, []byte(state+"\n"), 0644); err != nil {
-		return fmt.Errorf("writing feature state: %w", err)
+	stepPath := filepath.Join(featureDir, "step")
+	if err := os.WriteFile(stepPath, []byte(step+"\n"), 0644); err != nil {
+		return fmt.Errorf("writing feature step: %w", err)
 	}
 
 	return nil
@@ -153,10 +154,10 @@ func FormatState(featurePath string) string {
 	return fmt.Sprintf("Current feature: %s\n", featurePath)
 }
 
-// FormatFeatureStatus returns a formatted status string for a feature including its state.
-func FormatFeatureStatus(featurePath string, state string) string {
+// FormatFeatureStatus returns a formatted status string for a feature including its step.
+func FormatFeatureStatus(featurePath string, step string) string {
 	if featurePath == "" {
 		return "No active feature\n"
 	}
-	return fmt.Sprintf("Feature: %s\nState: %s\n", featurePath, state)
+	return fmt.Sprintf("Feature: %s\nStep: %s\n", featurePath, step)
 }
