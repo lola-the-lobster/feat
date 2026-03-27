@@ -126,6 +126,11 @@ func Load(path string) (*Manifest, error) {
 		return nil, fmt.Errorf("parsing manifest: %w", err)
 	}
 
+	// Check for circular references
+	if err := m.ValidateCircular(); err != nil {
+		return nil, err
+	}
+
 	return &m, nil
 }
 
