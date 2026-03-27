@@ -1,0 +1,22 @@
+--- a/cmd/feat/main.go
++++ b/cmd/feat/main.go
+@@ -17,6 +17,7 @@ import (
+ 	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+ 			os.Exit(exitcodes.ExitGeneralError)
+ 		}
++	case "transition":
++		if err := runTransition(); err != nil {
++			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
++			os.Exit(exitcodes.ExitGeneralError)
++		}
+ 	case "validate":
+ 		if err := runValidate(); err != nil {
+ 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+@@ -56,6 +57,7 @@ func printUsage() {
+ 	fmt.Println("  split <parent> <name>  Create a new feature")
+ 	fmt.Println("  status            Show current feature context")
+ 	fmt.Println("  validate          Check manifest for issues")
++	fmt.Println("  transition <state>  Update feature workflow state")
+ 	fmt.Println("  work <feature>    Load a feature's context")
+ 	fmt.Println("  version           Show version information")
+ 	fmt.Println("  help              Show this help message")
